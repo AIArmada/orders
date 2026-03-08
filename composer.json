@@ -1,0 +1,41 @@
+{
+    "name": "aiarmada/orders",
+    "description": "Order management and transaction lifecycle for the AIArmada Commerce ecosystem",
+    "license": "MIT",
+    "type": "library",
+    "keywords": [
+        "laravel",
+        "commerce",
+        "orders",
+        "transactions",
+        "state-machine",
+        "invoices"
+    ],
+    "authors": [
+        {
+            "name": "AIArmada",
+            "email": "dev@aiarmada.com"
+        }
+    ],
+    "require": {
+        "aiarmada/commerce-support": "self.version",
+        "spatie/laravel-pdf": "^1.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "AIArmada\\Orders\\": "src/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "AIArmada\\Orders\\OrdersServiceProvider"
+            ]
+        }
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}
