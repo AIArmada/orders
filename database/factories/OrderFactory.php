@@ -5,7 +5,11 @@ declare(strict_types=1);
 namespace AIArmada\Orders\Database\Factories;
 
 use AIArmada\Orders\Models\Order;
+use AIArmada\Orders\States\Canceled;
 use AIArmada\Orders\States\Created;
+use AIArmada\Orders\States\Delivered;
+use AIArmada\Orders\States\Processing;
+use AIArmada\Orders\States\Shipped;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Str;
 
@@ -56,7 +60,7 @@ class OrderFactory extends Factory
     public function paid(): static
     {
         return $this->state(fn (array $attributes) => [
-            'status' => \AIArmada\Orders\States\Processing::class,
+            'status' => Processing::class,
             'paid_at' => now(),
         ]);
     }
@@ -67,7 +71,7 @@ class OrderFactory extends Factory
     public function shipped(): static
     {
         return $this->state(fn (array $attributes) => [
-            'status' => \AIArmada\Orders\States\Shipped::class,
+            'status' => Shipped::class,
             'paid_at' => now()->subDays(2),
             'shipped_at' => now(),
         ]);
@@ -79,7 +83,7 @@ class OrderFactory extends Factory
     public function delivered(): static
     {
         return $this->state(fn (array $attributes) => [
-            'status' => \AIArmada\Orders\States\Delivered::class,
+            'status' => Delivered::class,
             'paid_at' => now()->subDays(5),
             'shipped_at' => now()->subDays(3),
             'delivered_at' => now(),
@@ -92,7 +96,7 @@ class OrderFactory extends Factory
     public function canceled(): static
     {
         return $this->state(fn (array $attributes) => [
-            'status' => \AIArmada\Orders\States\Canceled::class,
+            'status' => Canceled::class,
             'canceled_at' => now(),
             'cancellation_reason' => $this->faker->sentence(),
         ]);

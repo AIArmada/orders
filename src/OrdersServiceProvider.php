@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace AIArmada\Orders;
 
+use AIArmada\Docs\Contracts\DocServiceInterface;
 use AIArmada\Orders\Contracts\OrderServiceInterface;
 use AIArmada\Orders\Services\OrderService;
 use Illuminate\Contracts\Events\Dispatcher;
@@ -46,7 +47,7 @@ final class OrdersServiceProvider extends PackageServiceProvider
             return;
         }
 
-        if (! interface_exists(\AIArmada\Docs\Contracts\DocServiceInterface::class)) {
+        if (! interface_exists(DocServiceInterface::class)) {
             return;
         }
 

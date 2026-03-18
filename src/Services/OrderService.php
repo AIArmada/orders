@@ -10,6 +10,11 @@ use AIArmada\Orders\Models\Order;
 use AIArmada\Orders\Models\OrderItem;
 use AIArmada\Orders\States\Created;
 use AIArmada\Orders\States\PendingPayment;
+use AIArmada\Orders\Transitions\DeliveryConfirmed;
+use AIArmada\Orders\Transitions\OrderCanceled;
+use AIArmada\Orders\Transitions\PaymentConfirmed;
+use AIArmada\Orders\Transitions\RefundProcessed;
+use AIArmada\Orders\Transitions\ShipmentCreated;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
@@ -206,7 +211,7 @@ final class OrderService implements OrderServiceInterface
         }
 
         // Use transition class for proper state change with side effects
-        $transition = new \AIArmada\Orders\Transitions\OrderCanceled($order, $reason, $canceledBy);
+        $transition = new OrderCanceled($order, $reason, $canceledBy);
 
         return $transition->handle();
     }
@@ -221,7 +226,7 @@ final class OrderService implements OrderServiceInterface
         int $amount,
         array $metadata = [],
     ): Order {
-        $transition = new \AIArmada\Orders\Transitions\PaymentConfirmed(
+        $transition = new PaymentConfirmed(
             $order,
             $transactionId,
             $gateway,
@@ -242,7 +247,7 @@ final class OrderService implements OrderServiceInterface
         ?string $shipmentId = null,
         array $metadata = [],
     ): Order {
-        $transition = new \AIArmada\Orders\Transitions\ShipmentCreated(
+        $transition = new ShipmentCreated(
             $order,
             $carrier,
             $trackingNumber,
@@ -258,7 +263,7 @@ final class OrderService implements OrderServiceInterface
      */
     public function confirmDelivery(Order $order, array $metadata = []): Order
     {
-        $transition = new \AIArmada\Orders\Transitions\DeliveryConfirmed($order, $metadata);
+        $transition = new DeliveryConfirmed($order, $metadata);
 
         return $transition->handle();
     }
@@ -277,7 +282,7 @@ final class OrderService implements OrderServiceInterface
             throw new RuntimeException("Order {$order->order_number} cannot be refunded in its current state.");
         }
 
-        $transition = new \AIArmada\Orders\Transitions\RefundProcessed(
+        $transition = new RefundProcessed(
             $order,
             $amount,
             $transactionId,

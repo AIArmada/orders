@@ -12,6 +12,7 @@ use AIArmada\CommerceSupport\Traits\HasOwnerScopeConfig;
 use AIArmada\Orders\Database\Factories\OrderFactory;
 use AIArmada\Orders\Enums\PaymentStatus;
 use AIArmada\Orders\States\OrderStatus;
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
@@ -42,13 +43,13 @@ use Spatie\ModelStates\HasStates;
  * @property string|null $notes
  * @property string|null $internal_notes
  * @property array|null $metadata
- * @property \Carbon\CarbonInterface|null $paid_at
- * @property \Carbon\CarbonInterface|null $shipped_at
- * @property \Carbon\CarbonInterface|null $delivered_at
- * @property \Carbon\CarbonInterface|null $canceled_at
+ * @property CarbonInterface|null $paid_at
+ * @property CarbonInterface|null $shipped_at
+ * @property CarbonInterface|null $delivered_at
+ * @property CarbonInterface|null $canceled_at
  * @property string|null $cancellation_reason
- * @property \Carbon\CarbonInterface $created_at
- * @property \Carbon\CarbonInterface $updated_at
+ * @property CarbonInterface $created_at
+ * @property CarbonInterface $updated_at
  * @property-read Collection<int, OrderItem> $items
  * @property-read OrderAddress|null $billingAddress
  * @property-read OrderAddress|null $shippingAddress

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace AIArmada\Orders\Contracts;
 
 use AIArmada\Orders\Models\Order;
+use AIArmada\Shipping\Integrations\OrderFulfillmentHandler;
 
 /**
  * Contract for fulfillment/shipping integration.
@@ -13,7 +14,7 @@ use AIArmada\Orders\Models\Order;
  *
  * The shipping package provides a ready-to-use implementation:
  *
- * @see \AIArmada\Shipping\Integrations\OrderFulfillmentHandler
+ * @see OrderFulfillmentHandler
  *
  * This implementation is automatically registered when both the orders
  * and shipping packages are installed together.

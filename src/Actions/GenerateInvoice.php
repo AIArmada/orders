@@ -6,8 +6,10 @@ namespace AIArmada\Orders\Actions;
 
 use AIArmada\Orders\Models\Order;
 use Illuminate\Support\Str;
+use Spatie\Browsershot\Browsershot;
 use Spatie\LaravelPdf\Facades\Pdf;
 use Spatie\LaravelPdf\PdfBuilder;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * Generate PDF invoice for an order.
@@ -27,7 +29,7 @@ final class GenerateInvoice
     /**
      * Generate and download invoice.
      *
-     * @return \Symfony\Component\HttpFoundation\StreamedResponse
+     * @return StreamedResponse
      */
     public function download(Order $order)
     {
@@ -57,7 +59,7 @@ final class GenerateInvoice
         // Configure node module path for puppeteer
         $nodeModulePath = base_path('node_modules');
         if (is_dir($nodeModulePath)) {
-            $pdf->withBrowsershot(function (\Spatie\Browsershot\Browsershot $browsershot) use ($nodeModulePath): void {
+            $pdf->withBrowsershot(function (Browsershot $browsershot) use ($nodeModulePath): void {
                 $browsershot
                     ->setNodeModulePath($nodeModulePath)
                     ->setEnvironmentOptions([

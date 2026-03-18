@@ -10,6 +10,7 @@ use AIArmada\CommerceSupport\Traits\FormatsMoney;
 use AIArmada\CommerceSupport\Traits\HasOwner;
 use AIArmada\CommerceSupport\Traits\HasOwnerScopeConfig;
 use AIArmada\Orders\Enums\PaymentStatus;
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
@@ -30,9 +31,9 @@ use InvalidArgumentException;
  * @property string $reason
  * @property string|null $notes
  * @property array|null $metadata
- * @property \Carbon\CarbonInterface|null $refunded_at
- * @property \Carbon\CarbonInterface $created_at
- * @property \Carbon\CarbonInterface $updated_at
+ * @property CarbonInterface|null $refunded_at
+ * @property CarbonInterface $created_at
+ * @property CarbonInterface $updated_at
  * @property-read Order $order
  * @property-read OrderPayment|null $payment
  */

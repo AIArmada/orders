@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace AIArmada\Orders\Transitions;
 
+use AIArmada\Affiliates\Services\CommissionService;
+use AIArmada\Inventory\Services\InventoryService;
 use AIArmada\Orders\Enums\PaymentStatus;
 use AIArmada\Orders\Events\CommissionAttributionRequired;
 use AIArmada\Orders\Events\InventoryDeductionRequired;
@@ -46,7 +48,7 @@ final class PaymentConfirmed extends Transition
         // Deduct inventory (if package present)
         if (
             config('orders.integrations.inventory.enabled', true)
-            && class_exists(\AIArmada\Inventory\Services\InventoryService::class)
+            && class_exists(InventoryService::class)
         ) {
             $this->deductInventory();
         }
@@ -54,7 +56,7 @@ final class PaymentConfirmed extends Transition
         // Attribute affiliate commission (if package present)
         if (
             config('orders.integrations.affiliates.enabled', true)
-            && class_exists(\AIArmada\Affiliates\Services\CommissionService::class)
+            && class_exists(CommissionService::class)
         ) {
             $this->attributeCommission();
         }
