@@ -21,6 +21,7 @@ final class OrdersServiceProvider extends PackageServiceProvider
             ->hasConfigFile()
             ->hasTranslations()
             ->hasViews()
+            ->runsMigrations()
             ->discoversMigrations();
     }
 

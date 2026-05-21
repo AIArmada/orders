@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace AIArmada\Orders\Services;
 
+use AIArmada\CommerceSupport\Support\OwnerContext;
 use AIArmada\Orders\Contracts\OrderServiceInterface;
 use AIArmada\Orders\Events\OrderCreated;
 use AIArmada\Orders\Models\Order;
@@ -38,6 +39,8 @@ final class OrderService implements OrderServiceInterface
         ?array $billingAddress = null,
         ?array $shippingAddress = null,
     ): Order {
+        $this->assertOwnerBoundaryForCreation(__METHOD__);
+
         return DB::transaction(function () use ($orderData, $items, $billingAddress, $shippingAddress): Order {
             // Create the order
             $order = Order::create([
@@ -94,6 +97,8 @@ final class OrderService implements OrderServiceInterface
         ?array $billingAddress = null,
         ?array $shippingAddress = null,
     ): Order {
+        $this->assertOwnerBoundaryForCreation(__METHOD__);
+
         // Extract cart data
         $orderData = [
             'customer_id' => $customer->getKey(),
@@ -206,6 +211,8 @@ final class OrderService implements OrderServiceInterface
      */
     public function cancel(Order $order, string $reason, ?string $canceledBy = null): Order
     {
+        $this->assertOwnerBoundaryForMutation($order, __METHOD__);
+
         if (! $order->canBeCanceled()) {
             throw new RuntimeException("Order {$order->order_number} cannot be canceled in its current state.");
         }
@@ -226,6 +233,8 @@ final class OrderService implements OrderServiceInterface
         int $amount,
         array $metadata = [],
     ): Order {
+        $this->assertOwnerBoundaryForMutation($order, __METHOD__);
+
         $transition = new PaymentConfirmed(
             $order,
             $transactionId,
@@ -247,6 +256,8 @@ final class OrderService implements OrderServiceInterface
         ?string $shipmentId = null,
         array $metadata = [],
     ): Order {
+        $this->assertOwnerBoundaryForMutation($order, __METHOD__);
+
         $transition = new ShipmentCreated(
             $order,
             $carrier,
@@ -263,6 +274,8 @@ final class OrderService implements OrderServiceInterface
      */
     public function confirmDelivery(Order $order, array $metadata = []): Order
     {
+        $this->assertOwnerBoundaryForMutation($order, __METHOD__);
+
         $transition = new DeliveryConfirmed($order, $metadata);
 
         return $transition->handle();
@@ -278,6 +291,8 @@ final class OrderService implements OrderServiceInterface
         string $reason,
         array $metadata = [],
     ): Order {
+        $this->assertOwnerBoundaryForMutation($order, __METHOD__);
+
         if (! $order->canBeRefunded()) {
             throw new RuntimeException("Order {$order->order_number} cannot be refunded in its current state.");
         }
@@ -298,8 +313,69 @@ final class OrderService implements OrderServiceInterface
      */
     public function recalculateTotals(Order $order): Order
     {
+        $this->assertOwnerBoundaryForMutation($order, __METHOD__);
+
         $order->recalculateTotals()->save();
 
         return $order->fresh();
+    }
+
+    private function assertOwnerBoundaryForCreation(string $operation): void
+    {
+        if (! (bool) config('orders.owner.enabled', true)) {
+            return;
+        }
+
+        $owner = OwnerContext::resolve();
+
+        OwnerContext::assertResolvedOrExplicitGlobal(
+            $owner,
+            sprintf(
+                'Owner context is required for %s when orders owner mode is enabled. Use OwnerContext::withOwner($owner, ...) or OwnerContext::withOwner(null, ...) for explicit global operations.',
+                $operation,
+            ),
+        );
+    }
+
+    private function assertOwnerBoundaryForMutation(Order $order, string $operation): void
+    {
+        if (! (bool) config('orders.owner.enabled', true)) {
+            return;
+        }
+
+        $owner = OwnerContext::resolve();
+
+        if ($order->hasOwner()) {
+            if ($owner === null) {
+                throw new RuntimeException(sprintf(
+                    'A matching owner context is required for %s when mutating owned orders. Use OwnerContext::withOwner($owner, ...).',
+                    $operation,
+                ));
+            }
+
+            if (! $order->belongsToOwner($owner)) {
+                throw new RuntimeException(sprintf(
+                    'Cross-owner mutation blocked for %s. The current owner context does not match the order owner.',
+                    $operation,
+                ));
+            }
+
+            return;
+        }
+
+        OwnerContext::assertResolvedOrExplicitGlobal(
+            $owner,
+            sprintf(
+                'Explicit global owner context is required for %s when mutating global orders. Use OwnerContext::withOwner(null, ...).',
+                $operation,
+            ),
+        );
+
+        if (! OwnerContext::isExplicitGlobal()) {
+            throw new RuntimeException(sprintf(
+                'Explicit global owner context is required for %s when mutating global orders. Use OwnerContext::withOwner(null, ...).',
+                $operation,
+            ));
+        }
     }
 }

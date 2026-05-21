@@ -58,11 +58,22 @@ final class CreateOrderInvoiceDoc
 
     private function invoiceExists(Order $order): bool
     {
-        return Doc::query()
+        $query = Doc::query()
             ->where('docable_type', $order->getMorphClass())
             ->where('docable_id', $order->getKey())
-            ->where('doc_type', DocType::Invoice->value)
-            ->exists();
+            ->where('doc_type', DocType::Invoice->value);
+
+        if ($order->owner_type !== null && $order->owner_id !== null) {
+            $query
+                ->where('owner_type', $order->owner_type)
+                ->where('owner_id', $order->owner_id);
+        } else {
+            $query
+                ->whereNull('owner_type')
+                ->whereNull('owner_id');
+        }
+
+        return $query->exists();
     }
 
     /**

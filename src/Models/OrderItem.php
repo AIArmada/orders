@@ -168,9 +168,13 @@ class OrderItem extends Model
                 throw new InvalidArgumentException('order_id is required.');
             }
 
-            $owner = OwnerContext::resolve();
-            $includeGlobal = (bool) config('orders.owner.include_global', false);
-            $order = OwnerWriteGuard::findOrFailForOwner(Order::class, $item->order_id, $owner, $includeGlobal);
+            if (! Order::ownerScopeConfig()->enabled) {
+                $order = Order::query()->findOrFail($item->order_id);
+            } else {
+                $owner = OwnerContext::resolve();
+                $includeGlobal = (bool) config('orders.owner.include_global', false);
+                $order = OwnerWriteGuard::findOrFailForOwner(Order::class, $item->order_id, $owner, $includeGlobal);
+            }
 
             if ($order->owner_type !== null && $order->owner_id !== null) {
                 $item->owner_type = $order->owner_type;

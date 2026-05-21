@@ -177,9 +177,13 @@ class OrderPayment extends Model
                 throw new InvalidArgumentException('order_id is required.');
             }
 
-            $owner = OwnerContext::resolve();
-            $includeGlobal = (bool) config('orders.owner.include_global', false);
-            $order = OwnerWriteGuard::findOrFailForOwner(Order::class, $payment->order_id, $owner, $includeGlobal);
+            if (! Order::ownerScopeConfig()->enabled) {
+                $order = Order::query()->findOrFail($payment->order_id);
+            } else {
+                $owner = OwnerContext::resolve();
+                $includeGlobal = (bool) config('orders.owner.include_global', false);
+                $order = OwnerWriteGuard::findOrFailForOwner(Order::class, $payment->order_id, $owner, $includeGlobal);
+            }
 
             if ($order->owner_type !== null && $order->owner_id !== null) {
                 $payment->owner_type = $order->owner_type;

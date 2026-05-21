@@ -70,7 +70,7 @@ final class OrderProcessingCheck extends CommerceHealthCheck
         if ((bool) config('orders.owner.enabled', true)) {
             $owner = OwnerContext::resolve();
 
-            if ($owner === null) {
+            if ($owner === null && ! OwnerContext::isExplicitGlobal()) {
                 return $this->warning('Owner context missing; skipping order processing metrics.', [
                     'reason' => 'owner_context_missing',
                 ]);

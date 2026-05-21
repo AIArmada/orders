@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace AIArmada\Orders\Actions;
 
 use AIArmada\Orders\Models\Order;
+use Illuminate\Support\Facades\View;
 use Illuminate\Support\Str;
 use Spatie\Browsershot\Browsershot;
 use Spatie\LaravelPdf\Facades\Pdf;
@@ -33,6 +34,10 @@ final class GenerateInvoice
      */
     public function download(Order $order)
     {
+        if (! $this->hasPdfRuntime()) {
+            return $this->downloadHtmlFallback($order);
+        }
+
         return $this->buildPdf($order)->download();
     }
 
@@ -82,5 +87,34 @@ final class GenerateInvoice
         $randomLength = (int) config('orders.invoice.random_length', 6);
 
         return $prefix . $separator . now()->format($dateFormat) . $separator . mb_strtoupper(Str::random($randomLength));
+    }
+
+    private function hasPdfRuntime(): bool
+    {
+        return is_file(base_path('node_modules/puppeteer/package.json'));
+    }
+
+    private function downloadHtmlFallback(Order $order): StreamedResponse
+    {
+        $filename = sprintf('invoice-%s.html', $order->order_number);
+
+        return response()->streamDownload(function () use ($order): void {
+            echo $this->renderInvoiceHtml($order);
+        }, $filename, [
+            'Content-Type' => 'text/html; charset=UTF-8',
+        ]);
+    }
+
+    private function renderInvoiceHtml(Order $order): string
+    {
+        return View::make('orders::pdf.invoice', [
+            'order' => $order,
+            'items' => $order->items,
+            'billingAddress' => $order->billingAddress,
+            'shippingAddress' => $order->shippingAddress,
+            'payments' => $order->payments()->where('status', 'completed')->get(),
+            'invoiceNumber' => $this->generateInvoiceNumber($order),
+            'invoiceDate' => now(),
+        ])->render();
     }
 }
