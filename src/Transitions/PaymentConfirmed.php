@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace AIArmada\Orders\Transitions;
 
-use AIArmada\Affiliates\Services\CommissionService;
 use AIArmada\Inventory\Services\InventoryService;
 use AIArmada\Orders\Enums\PaymentStatus;
 use AIArmada\Orders\Events\CommissionAttributionRequired;
@@ -54,10 +53,7 @@ final class PaymentConfirmed extends Transition
         }
 
         // Attribute affiliate commission (if package present)
-        if (
-            config('orders.integrations.affiliates.enabled', true)
-            && class_exists(CommissionService::class)
-        ) {
+        if (config('orders.integrations.affiliates.enabled', true)) {
             $this->attributeCommission();
         }
 

@@ -248,7 +248,43 @@ class SendOrderConfirmation
 }
 ```
 
-## Invoice Generation
+## Order Documents
+
+### Persisted Invoice Documents
+
+Use `CreateOrderInvoiceDoc` when you want to create a Docs record for a paid order.
+
+```php
+use AIArmada\Orders\Actions\CreateOrderInvoiceDoc;
+
+$invoice = app(CreateOrderInvoiceDoc::class)->execute(
+    order: $order,
+    transactionId: 'txn_abc123',
+    gateway: 'chip',
+);
+```
+
+The action re-enters the order's owner scope automatically and creates a Docs invoice only when one does not already exist for that order.
+
+### Persisted Receipt Documents
+
+Use `CreateOrderReceiptDoc` when payment confirmation should also create a receipt document.
+
+```php
+use AIArmada\Orders\Actions\CreateOrderReceiptDoc;
+
+$receipt = app(CreateOrderReceiptDoc::class)->execute(
+    order: $order,
+    transactionId: 'txn_abc123',
+    gateway: 'chip',
+);
+```
+
+Unlike invoice creation, receipt creation is idempotent by returning the existing receipt document when one is already present.
+
+Both actions share the same internal order-doc builder, so customer data, order totals, tax, discount, gateway metadata, and owner scope handling stay aligned.
+
+### PDF Invoice Output
 
 ```php
 use AIArmada\Orders\Actions\GenerateInvoice;
@@ -261,6 +297,8 @@ return $generator->download($order);
 // Get PDF content as string
 $pdfContent = $generator->generate($order);
 ```
+
+Use `GenerateInvoice` for ad-hoc PDF generation and download responses. Use `CreateOrderInvoiceDoc` / `CreateOrderReceiptDoc` when you want persisted Docs records that integrate with the Docs package.
 
 ## Health Checks
 

@@ -19,8 +19,9 @@
     ],
     "require": {
         "aiarmada/commerce-support": "self.version",
-        "spatie/browsershot": "^5.0",
-        "spatie/laravel-pdf": "^2.4"
+        "spatie/browsershot": "^5.3.0",
+        "spatie/laravel-pdf": "^2.9.0",
+        "php": "^8.4"
     },
     "autoload": {
         "psr-4": {

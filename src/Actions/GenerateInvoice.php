@@ -29,10 +29,8 @@ final class GenerateInvoice
 
     /**
      * Generate and download invoice.
-     *
-     * @return StreamedResponse
      */
-    public function download(Order $order)
+    public function download(Order $order): PdfBuilder | StreamedResponse
     {
         if (! $this->hasPdfRuntime()) {
             return $this->downloadHtmlFallback($order);
