@@ -94,6 +94,13 @@ interface OrderServiceInterface
     public function confirmDelivery(Order $order, array $metadata = []): Order;
 
     /**
+     * Mark order as completed.
+     *
+     * @param  array<string, mixed>  $metadata
+     */
+    public function complete(Order $order, array $metadata = []): Order;
+
+    /**
      * Process refund for returned order.
      *
      * @param  array<string, mixed>  $metadata

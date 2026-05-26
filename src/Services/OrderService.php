@@ -13,6 +13,7 @@ use AIArmada\Orders\States\Created;
 use AIArmada\Orders\States\PendingPayment;
 use AIArmada\Orders\Transitions\DeliveryConfirmed;
 use AIArmada\Orders\Transitions\OrderCanceled;
+use AIArmada\Orders\Transitions\OrderCompleted;
 use AIArmada\Orders\Transitions\PaymentConfirmed;
 use AIArmada\Orders\Transitions\RefundProcessed;
 use AIArmada\Orders\Transitions\ShipmentCreated;
@@ -277,6 +278,18 @@ final class OrderService implements OrderServiceInterface
         $this->assertOwnerBoundaryForMutation($order, __METHOD__);
 
         $transition = new DeliveryConfirmed($order, $metadata);
+
+        return $transition->handle();
+    }
+
+    /**
+     * Mark order as completed.
+     */
+    public function complete(Order $order, array $metadata = []): Order
+    {
+        $this->assertOwnerBoundaryForMutation($order, __METHOD__);
+
+        $transition = new OrderCompleted($order, $metadata);
 
         return $transition->handle();
     }

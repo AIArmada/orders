@@ -82,6 +82,7 @@ abstract class OrderStatus extends State
             ->allowTransition(Processing::class, OnHold::class)
             ->allowTransition(Processing::class, Fraud::class)
             ->allowTransition(Processing::class, Shipped::class)
+            ->allowTransition(Processing::class, Completed::class)
             ->allowTransition(Processing::class, Canceled::class)
             // Hold management
             ->allowTransition(OnHold::class, Processing::class)
