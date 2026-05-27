@@ -13,7 +13,7 @@ return [
             'order_refunds' => 'order_refunds',
             'order_notes' => 'order_notes',
         ],
-        'json_column_type' => env('ORDERS_JSON_COLUMN_TYPE', env('COMMERCE_JSON_COLUMN_TYPE', 'json')),
+        'json_column_type' => env('ORDERS_JSON_COLUMN_TYPE', env('COMMERCE_JSON_COLUMN_TYPE', 'jsonb')),
     ],
 
     /* Defaults */
