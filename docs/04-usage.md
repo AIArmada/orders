@@ -254,6 +254,8 @@ class SendOrderConfirmation
 
 Use `CreateOrderInvoiceDoc` when you want to create a Docs record for a paid order.
 
+Automatic `OrderPaid` invoice generation is disabled by default. Turn on `orders.integrations.docs.enabled` only when you want that event listener to create persisted Docs invoices automatically.
+
 ```php
 use AIArmada\Orders\Actions\CreateOrderInvoiceDoc;
 
@@ -269,6 +271,8 @@ The action re-enters the order's owner scope automatically and creates a Docs in
 ### Persisted Receipt Documents
 
 Use `CreateOrderReceiptDoc` when payment confirmation should also create a receipt document.
+
+Checkout-driven receipt generation is also opt-in from the checkout package side; manual action usage remains available regardless of the listener defaults.
 
 ```php
 use AIArmada\Orders\Actions\CreateOrderReceiptDoc;

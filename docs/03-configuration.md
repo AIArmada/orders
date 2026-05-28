@@ -94,6 +94,17 @@ Enable/disable integrations with other Commerce packages:
         'enabled' => true, // Auto-reserve/release inventory
     ],
 
+    'affiliates' => [
+        'enabled' => true, // Track affiliate commissions
+    ],
+
+    'docs' => [
+        'enabled' => env('ORDERS_INTEGRATIONS_DOCS_ENABLED', false),
+        'generate_pdf' => env('ORDERS_INTEGRATIONS_DOCS_GENERATE_PDF', false),
+    ],
+],
+```
+
 ## Order Status Defaults
 
 Define which order states are allowed as initial values and the default used when no status is provided:
@@ -112,11 +123,8 @@ Define which order states are allowed as initial values and the default used whe
 Recommended usage:
 - **E-commerce flow**: keep `processing` as default (order created after payment).
 - **Traditional flow**: set default to `created` or pass an explicit status on create.
-    'affiliates' => [
-        'enabled' => true, // Track affiliate commissions
-    ],
-],
-```
+
+The Docs integration is disabled by default. Enable it only when you want `OrderPaid` to auto-create persisted Docs invoices.
 
 ## Audit Logging
 
@@ -143,6 +151,8 @@ Configure audit logging behavior:
 | `ORDERS_ORDER_NUMBER_USE_DATE` | `true` | Include date in order number |
 | `ORDERS_ORDER_NUMBER_DATE_FORMAT` | `Ymd` | Date format for order numbers |
 | `ORDERS_INVOICE_PREFIX` | `INV` | Invoice number prefix |
+| `ORDERS_INTEGRATIONS_DOCS_ENABLED` | `false` | Enable automatic Docs invoice creation on `OrderPaid` |
+| `ORDERS_INTEGRATIONS_DOCS_GENERATE_PDF` | `false` | Generate PDFs when Docs invoices are auto-created |
 | `ORDERS_AUDIT_ENABLED` | `true` | Enable audit logging |
 | `ORDERS_AUDIT_THRESHOLD` | `500` | Audit threshold in cents |
 
@@ -202,6 +212,10 @@ return [
     'integrations' => [
         'inventory' => ['enabled' => true],
         'affiliates' => ['enabled' => true],
+        'docs' => [
+            'enabled' => env('ORDERS_INTEGRATIONS_DOCS_ENABLED', false),
+            'generate_pdf' => env('ORDERS_INTEGRATIONS_DOCS_GENERATE_PDF', false),
+        ],
     ],
 
     'audit' => [

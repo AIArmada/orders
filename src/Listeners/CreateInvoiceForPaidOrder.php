@@ -15,7 +15,7 @@ final class CreateInvoiceForPaidOrder
 
     public function handle(OrderPaid $event): void
     {
-        if (! config('orders.integrations.docs.enabled', true)) {
+        if (! config('orders.integrations.docs.enabled', false)) {
             return;
         }
 

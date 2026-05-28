@@ -63,7 +63,7 @@ return [
             'enabled' => env('ORDERS_INTEGRATIONS_AFFILIATES_ENABLED', true),
         ],
         'docs' => [
-            'enabled' => env('ORDERS_INTEGRATIONS_DOCS_ENABLED', true),
+            'enabled' => env('ORDERS_INTEGRATIONS_DOCS_ENABLED', false),
             'generate_pdf' => env('ORDERS_INTEGRATIONS_DOCS_GENERATE_PDF', false),
         ],
     ],

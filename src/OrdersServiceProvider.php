@@ -44,7 +44,7 @@ final class OrdersServiceProvider extends PackageServiceProvider
 
     protected function registerEventListeners(): void
     {
-        if (! config('orders.integrations.docs.enabled', true)) {
+        if (! config('orders.integrations.docs.enabled', false)) {
             return;
         }
 
