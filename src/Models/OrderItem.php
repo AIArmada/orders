@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace AIArmada\Orders\Models;
 
+use AIArmada\CommerceSupport\Concerns\HasCommerceAudit;
+use AIArmada\CommerceSupport\Concerns\LogsCommerceActivity;
 use AIArmada\CommerceSupport\Support\OwnerContext;
 use AIArmada\CommerceSupport\Support\OwnerWriteGuard;
 use AIArmada\CommerceSupport\Traits\FormatsMoney;
@@ -16,6 +18,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Support\Carbon;
 use InvalidArgumentException;
+use OwenIt\Auditing\Contracts\Auditable;
 
 /**
  * @property string $id
@@ -38,14 +41,16 @@ use InvalidArgumentException;
  * @property Carbon $updated_at
  * @property-read Order $order
  */
-class OrderItem extends Model
+class OrderItem extends Model implements Auditable
 {
     use FormatsMoney;
+    use HasCommerceAudit;
     use HasOwner {
         scopeForOwner as baseScopeForOwner;
     }
     use HasOwnerScopeConfig;
     use HasUuids;
+    use LogsCommerceActivity;
 
     protected static string $ownerScopeConfigKey = 'orders.owner';
 
@@ -70,6 +75,27 @@ class OrderItem extends Model
         'options',
         'metadata',
     ];
+
+    public function getAuditInclude(): array
+    {
+        return [
+            'order_id',
+            'owner_id',
+            'owner_type',
+            'purchasable_id',
+            'purchasable_type',
+            'name',
+            'sku',
+            'quantity',
+            'unit_price',
+            'discount_amount',
+            'tax_amount',
+            'total',
+            'currency',
+            'options',
+            'metadata',
+        ];
+    }
 
     /**
      * @var array<string, mixed>
@@ -203,5 +229,10 @@ class OrderItem extends Model
             'options' => 'array',
             'metadata' => 'array',
         ];
+    }
+
+    protected function getActivityLogName(): string
+    {
+        return 'orders';
     }
 }
