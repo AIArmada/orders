@@ -33,9 +33,9 @@ return new class extends Migration
             $table->text('notes')->nullable();
 
             $table->{$jsonType}('metadata')->nullable();
-            $table->timestamp('refunded_at')->nullable();
+            $table->timestampTz('refunded_at')->nullable();
             $table->nullableUuidMorphs('owner');
-            $table->timestamps();
+            $table->timestampsTz();
 
             // Indexes
             $table->index(['order_id', 'status']);

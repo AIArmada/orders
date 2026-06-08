@@ -29,9 +29,9 @@ return new class extends Migration
             $table->text('failure_reason')->nullable();
 
             $table->{$jsonType}('metadata')->nullable();
-            $table->timestamp('paid_at')->nullable();
+            $table->timestampTz('paid_at')->nullable();
             $table->nullableUuidMorphs('owner');
-            $table->timestamps();
+            $table->timestampsTz();
 
             // Indexes
             $table->index(['order_id', 'status']);

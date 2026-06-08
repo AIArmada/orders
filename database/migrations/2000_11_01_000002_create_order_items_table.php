@@ -38,7 +38,7 @@ return new class extends Migration
 
             $table->nullableUuidMorphs('owner');
 
-            $table->timestamps();
+            $table->timestampsTz();
 
             // Indexes
             $table->index(['order_id', 'created_at']);

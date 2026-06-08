@@ -40,13 +40,13 @@ return new class extends Migration
             $table->{$jsonType}('metadata')->nullable();
 
             // Timestamps
-            $table->timestamp('paid_at')->nullable()->index();
-            $table->timestamp('shipped_at')->nullable();
-            $table->timestamp('delivered_at')->nullable();
-            $table->timestamp('canceled_at')->nullable();
+            $table->timestampTz('paid_at')->nullable()->index();
+            $table->timestampTz('shipped_at')->nullable();
+            $table->timestampTz('delivered_at')->nullable();
+            $table->timestampTz('canceled_at')->nullable();
             $table->string('cancellation_reason')->nullable();
 
-            $table->timestamps();
+            $table->timestampsTz();
 
             // Indexes
             $table->index(['status', 'created_at']);
