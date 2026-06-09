@@ -7,6 +7,7 @@ namespace AIArmada\Orders;
 use AIArmada\Docs\Contracts\DocServiceInterface;
 use AIArmada\Orders\Contracts\OrderServiceInterface;
 use AIArmada\Orders\Services\OrderService;
+use AIArmada\Orders\Support\OrderHandlerRegistrar;
 use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Support\Facades\Gate;
 use Spatie\LaravelPackageTools\Package;
@@ -27,8 +28,10 @@ final class OrdersServiceProvider extends PackageServiceProvider
 
     public function registeringPackage(): void
     {
+        $this->app->singleton(OrderHandlerRegistrar::class);
         $this->app->bind(OrderServiceInterface::class, OrderService::class);
         $this->registerEventListeners();
+        $this->registerTransitionListeners();
     }
 
     public function bootingPackage(): void
@@ -54,5 +57,17 @@ final class OrdersServiceProvider extends PackageServiceProvider
 
         $dispatcher = $this->app->make(Dispatcher::class);
         $dispatcher->listen(Events\OrderPaid::class, Listeners\CreateInvoiceForPaidOrder::class);
+    }
+
+    protected function registerTransitionListeners(): void
+    {
+        $dispatcher = $this->app->make(Dispatcher::class);
+
+        if (config('orders.integrations.inventory.enabled', true)) {
+            $dispatcher->listen(Events\OrderProcessingStarted::class, Listeners\DeductInventoryOnPaymentConfirmed::class);
+            $dispatcher->listen(Events\OrderCancelInitiated::class, Listeners\ReleaseInventoryOnOrderCanceled::class);
+        }
+
+        // CreateInvoiceForPaidOrder is registered in registerEventListeners()
     }
 }

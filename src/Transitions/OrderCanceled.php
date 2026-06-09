@@ -7,6 +7,7 @@ namespace AIArmada\Orders\Transitions;
 use AIArmada\Orders\Enums\PaymentStatus;
 use AIArmada\Orders\Events\InventoryReleaseRequired;
 use AIArmada\Orders\Events\OrderCanceled as OrderCanceledEvent;
+use AIArmada\Orders\Events\OrderCancelInitiated;
 use AIArmada\Orders\Models\Order;
 use AIArmada\Orders\States\Canceled;
 use Spatie\ModelStates\Transition;
@@ -52,8 +53,9 @@ final class OrderCanceled extends Transition
             $this->initiateRefund();
         }
 
-        // Dispatch event
+        // Dispatch events
         event(new OrderCanceledEvent($this->order, $this->reason, $this->canceledBy));
+        event(new OrderCancelInitiated($this->order, $this->reason, $this->canceledBy));
 
         return $this->order;
     }

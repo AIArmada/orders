@@ -9,6 +9,7 @@ use AIArmada\Orders\Enums\PaymentStatus;
 use AIArmada\Orders\Events\CommissionAttributionRequired;
 use AIArmada\Orders\Events\InventoryDeductionRequired;
 use AIArmada\Orders\Events\OrderPaid;
+use AIArmada\Orders\Events\OrderProcessingStarted;
 use AIArmada\Orders\Models\Order;
 use AIArmada\Orders\States\Processing;
 use Spatie\ModelStates\Transition;
@@ -62,8 +63,9 @@ final class PaymentConfirmed extends Transition
         $this->order->paid_at = now();
         $this->order->save();
 
-        // Dispatch event
+        // Dispatch events
         event(new OrderPaid($this->order, $this->transactionId, $this->gateway));
+        event(new OrderProcessingStarted($this->order, $this->transactionId, $this->gateway));
 
         return $this->order;
     }
