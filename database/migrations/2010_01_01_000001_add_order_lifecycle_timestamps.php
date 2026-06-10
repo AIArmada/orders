@@ -24,15 +24,15 @@ return new class extends Migration
         });
 
         if (DB::connection()->getDriverName() !== 'sqlite') {
-        if (DB::getDriverName() !== 'sqlite') {
-            DB::statement("
+            if (DB::getDriverName() !== 'sqlite') {
+                DB::statement("
                 UPDATE {$tableName}
                 SET completed_at = (metadata->'completion'->>'completed_at')::timestamp with time zone
                 WHERE status = 'completed'
                   AND metadata->'completion'->>'completed_at' IS NOT NULL
                   AND completed_at IS NULL
             ");
-        }
+            }
         }
     }
 

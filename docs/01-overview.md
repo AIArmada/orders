@@ -32,8 +32,12 @@ The `aiarmada/orders` package owns order records, order lifecycle transitions, p
 ## Main models services or surfaces
 
 - **Models** — order, order items, addresses, payments, refunds, and notes
-- **Services and actions** — `OrderService`, invoice generation, payment confirmation, shipping transitions, refunds, and total recalculation
+- **Actions** — `CreateOrder`, `CreateOrderFromCart`, `CancelOrder`, `CompleteOrder`, `RegisterOrderPayment`, `RegisterOrderRefund`, `DetermineOrderDocumentType`, plus invoice/receipt doc generation
+- **Services** — `OrderService` (compatibility layer delegating to Actions)
 - **State machine** — order state classes and transitions
+- **Events** — lifecycle events including `OrderCreated`, `OrderPaid`, `OrderCanceled`, `OrderCancelInitiated`, `OrderProcessingStarted`
+- **Transitions** — state transition classes (`PaymentConfirmed`, `OrderCanceled`, `OrderCompleted`, etc.)
+- **Listeners** — `DeductInventoryOnPaymentConfirmed`, `ReleaseInventoryOnOrderCanceled`, `CreateInvoiceForPaidOrder`
 
 ## Owner scoping and security notes
 
@@ -70,11 +74,17 @@ The Orders package provides a complete order management system for e-commerce ap
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
+│                       Actions (Canonical)                    │
+│  CreateOrder  CreateOrderFromCart  CancelOrder               │
+│  CompleteOrder  RegisterOrderPayment  RegisterOrderRefund    │
+│  DetermineOrderDocumentType  CreateOrderInvoiceDoc           │
+│  CreateOrderReceiptDoc  GenerateInvoice                      │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
 │                       OrderService                           │
-│  - createOrder()      - confirmPayment()                     │
-│  - addItem()          - ship()                               │
-│  - cancel()           - confirmDelivery()                    │
-│  - processRefund()    - recalculateTotals()                  │
+│  (Compatibility facade delegating to Actions)                │
 └─────────────────────────────────────────────────────────────┘
                               │
                               ▼
@@ -83,6 +93,15 @@ The Orders package provides a complete order management system for e-commerce ap
 │  Created → PendingPayment → Processing → Shipped            │
 │  → Delivered → Completed                                     │
 │  + Canceled, Refunded, Returned, OnHold, Fraud, PaymentFailed│
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│               Listeners & Transitions                        │
+│  DeductInventoryOnPaymentConfirmed                           │
+│  ReleaseInventoryOnOrderCanceled                             │
+│  CreateInvoiceForPaidOrder                                   │
+│  OrderCanceled  PaymentConfirmed  OrderCompleted             │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -99,16 +118,20 @@ packages/orders/
 │   ├── lang/               # Translations
 │   └── views/              # Invoice templates
 └── src/
-    ├── Actions/            # GenerateInvoice
+    ├── Actions/            # 10+ Actions (canonical orchestration API)
+    │   └── Concerns/       # Action helper traits
     ├── Contracts/          # Service & Handler interfaces
     ├── Enums/              # PaymentStatus, RefundStatus, OrderItemStatus
-    ├── Events/             # Order lifecycle events
+    ├── Events/             # 13+ lifecycle events
+    │   └── Concerns/       # Event helper traits
     ├── Health/             # Health checks
+    ├── Listeners/          # Inventory deduction, invoice creation
     ├── Models/             # Eloquent models
     ├── Policies/           # Authorization policies
-    ├── Services/           # OrderService
+    ├── Services/           # OrderService (compatibility facade)
     ├── States/             # Order state classes
-    └── Transitions/        # State transition logic
+    ├── Support/            # OrderHandlerRegistrar and helpers
+    └── Transitions/        # State transition classes
 ```
 
 ## Requirements
