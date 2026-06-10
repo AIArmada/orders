@@ -23,15 +23,17 @@ return new class extends Migration
             $table->string('status', 50)->default('created')->change();
         });
 
-        $jsonType = (string) config('orders.database.json_column_type', 'jsonb');
-
-        DB::statement("
-            UPDATE {$tableName}
-            SET completed_at = (metadata->'completion'->>'completed_at')::timestamp with time zone
-            WHERE status = 'completed'
-              AND metadata->'completion'->>'completed_at' IS NOT NULL
-              AND completed_at IS NULL
-        ");
+        if (DB::connection()->getDriverName() !== 'sqlite') {
+        if (DB::getDriverName() !== 'sqlite') {
+            DB::statement("
+                UPDATE {$tableName}
+                SET completed_at = (metadata->'completion'->>'completed_at')::timestamp with time zone
+                WHERE status = 'completed'
+                  AND metadata->'completion'->>'completed_at' IS NOT NULL
+                  AND completed_at IS NULL
+            ");
+        }
+        }
     }
 
     public function down(): void

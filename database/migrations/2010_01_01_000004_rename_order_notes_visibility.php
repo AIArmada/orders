@@ -19,7 +19,8 @@ return new class extends Migration
 
         DB::statement("UPDATE {$tableName} SET visibility = 'customer' WHERE is_customer_visible = true");
 
-        Schema::table($tableName, function (Blueprint $table): void {
+        Schema::table($tableName, function (Blueprint $table) use ($tableName): void {
+            $table->dropIndex($tableName . '_order_id_is_customer_visible_index');
             $table->dropColumn('is_customer_visible');
         });
     }
