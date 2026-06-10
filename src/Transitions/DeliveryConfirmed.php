@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace AIArmada\Orders\Transitions;
 
+use AIArmada\Orders\Enums\OrderItemStatus;
 use AIArmada\Orders\Events\OrderDelivered;
 use AIArmada\Orders\Models\Order;
 use AIArmada\Orders\States\Delivered;
@@ -53,6 +54,14 @@ final class DeliveryConfirmed extends Transition
         $existingMetadata['shipping'] = $shipping;
         $this->order->metadata = $existingMetadata;
         $this->order->delivered_at = $deliveredAt;
+
+        // Mark all shipped items as delivered
+        $this->order->items()
+            ->where('status', OrderItemStatus::Shipped)
+            ->update([
+                'status' => OrderItemStatus::Delivered,
+                'delivered_at' => $deliveredAt,
+            ]);
 
         $this->order->status->transitionTo(Delivered::class);
 

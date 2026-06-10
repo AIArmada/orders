@@ -101,7 +101,7 @@ packages/orders/
 └── src/
     ├── Actions/            # GenerateInvoice
     ├── Contracts/          # Service & Handler interfaces
-    ├── Enums/              # PaymentStatus
+    ├── Enums/              # PaymentStatus, RefundStatus, OrderItemStatus
     ├── Events/             # Order lifecycle events
     ├── Health/             # Health checks
     ├── Models/             # Eloquent models

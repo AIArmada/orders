@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace AIArmada\Orders\Transitions;
 
+use AIArmada\Orders\Enums\OrderItemStatus;
 use AIArmada\Orders\Events\OrderShipped;
 use AIArmada\Orders\Models\Order;
 use AIArmada\Orders\States\Shipped;
@@ -60,6 +61,14 @@ final class ShipmentCreated extends Transition
         $existingMetadata['shipping'] = $shipping;
         $this->order->metadata = $existingMetadata;
         $this->order->shipped_at = $shippedAt;
+
+        // Mark all active items as shipped
+        $this->order->items()
+            ->where('status', OrderItemStatus::Active)
+            ->update([
+                'status' => OrderItemStatus::Shipped,
+                'shipped_at' => $shippedAt,
+            ]);
 
         $this->order->status->transitionTo(Shipped::class);
 

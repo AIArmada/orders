@@ -11,6 +11,8 @@ use AIArmada\CommerceSupport\Support\OwnerWriteGuard;
 use AIArmada\CommerceSupport\Traits\FormatsMoney;
 use AIArmada\CommerceSupport\Traits\HasOwner;
 use AIArmada\CommerceSupport\Traits\HasOwnerScopeConfig;
+use AIArmada\Orders\Enums\OrderItemStatus;
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
@@ -35,6 +37,11 @@ use OwenIt\Auditing\Contracts\Auditable;
  * @property int $tax_amount
  * @property int $total
  * @property string $currency
+ * @property OrderItemStatus $status
+ * @property CarbonInterface|null $shipped_at
+ * @property CarbonInterface|null $delivered_at
+ * @property CarbonInterface|null $returned_at
+ * @property CarbonInterface|null $canceled_at
  * @property array|null $options
  * @property array|null $metadata
  * @property Carbon $created_at
@@ -72,6 +79,11 @@ class OrderItem extends Model implements Auditable
         'tax_amount',
         'total',
         'currency',
+        'status',
+        'shipped_at',
+        'delivered_at',
+        'returned_at',
+        'canceled_at',
         'options',
         'metadata',
     ];
@@ -92,6 +104,11 @@ class OrderItem extends Model implements Auditable
             'tax_amount',
             'total',
             'currency',
+            'status',
+            'shipped_at',
+            'delivered_at',
+            'returned_at',
+            'canceled_at',
             'options',
             'metadata',
         ];
@@ -107,6 +124,7 @@ class OrderItem extends Model implements Auditable
         'tax_amount' => 0,
         'total' => 0,
         'currency' => 'MYR',
+        'status' => 'active',
     ];
 
     public function getTable(): string
@@ -226,6 +244,11 @@ class OrderItem extends Model implements Auditable
             'discount_amount' => 'integer',
             'tax_amount' => 'integer',
             'total' => 'integer',
+            'status' => OrderItemStatus::class,
+            'shipped_at' => 'immutable_datetime',
+            'delivered_at' => 'immutable_datetime',
+            'returned_at' => 'immutable_datetime',
+            'canceled_at' => 'immutable_datetime',
             'options' => 'array',
             'metadata' => 'array',
         ];

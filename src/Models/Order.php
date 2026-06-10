@@ -12,6 +12,7 @@ use AIArmada\CommerceSupport\Traits\HasOwner;
 use AIArmada\CommerceSupport\Traits\HasOwnerScopeConfig;
 use AIArmada\Orders\Database\Factories\OrderFactory;
 use AIArmada\Orders\Enums\PaymentStatus;
+use AIArmada\Orders\Enums\RefundStatus;
 use AIArmada\Orders\States\OrderStatus;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
@@ -48,6 +49,9 @@ use Spatie\ModelStates\HasStates;
  * @property CarbonInterface|null $shipped_at
  * @property CarbonInterface|null $delivered_at
  * @property CarbonInterface|null $canceled_at
+ * @property CarbonInterface|null $payment_failed_at
+ * @property CarbonInterface|null $refunded_at
+ * @property CarbonInterface|null $completed_at
  * @property string|null $cancellation_reason
  * @property CarbonInterface $created_at
  * @property CarbonInterface $updated_at
@@ -103,6 +107,9 @@ class Order extends Model implements Auditable
         'shipped_at',
         'delivered_at',
         'canceled_at',
+        'payment_failed_at',
+        'refunded_at',
+        'completed_at',
         'cancellation_reason',
     ];
 
@@ -315,7 +322,7 @@ class Order extends Model implements Auditable
     public function getTotalRefunded(): int
     {
         return $this->refunds()
-            ->where('status', PaymentStatus::Completed)
+            ->where('status', RefundStatus::Completed)
             ->sum('amount');
     }
 
@@ -382,6 +389,9 @@ class Order extends Model implements Auditable
             'shipped_at',
             'delivered_at',
             'canceled_at',
+            'payment_failed_at',
+            'refunded_at',
+            'completed_at',
             'cancellation_reason',
         ];
     }
@@ -467,10 +477,13 @@ class Order extends Model implements Auditable
             'tax_total' => 'integer',
             'grand_total' => 'integer',
             'metadata' => 'array',
-            'paid_at' => 'datetime',
-            'shipped_at' => 'datetime',
-            'delivered_at' => 'datetime',
-            'canceled_at' => 'datetime',
+            'paid_at' => 'immutable_datetime',
+            'shipped_at' => 'immutable_datetime',
+            'delivered_at' => 'immutable_datetime',
+            'canceled_at' => 'immutable_datetime',
+            'payment_failed_at' => 'immutable_datetime',
+            'refunded_at' => 'immutable_datetime',
+            'completed_at' => 'immutable_datetime',
         ];
     }
 

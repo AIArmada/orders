@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace AIArmada\Orders\Transitions;
 
 use AIArmada\Orders\Enums\PaymentStatus;
+use AIArmada\Orders\Enums\RefundStatus;
 use AIArmada\Orders\Events\OrderRefunded;
 use AIArmada\Orders\Models\Order;
 use AIArmada\Orders\States\Refunded;
@@ -28,8 +29,15 @@ final class RefundProcessed extends Transition
 
     public function handle(): Order
     {
+        $now = now();
+
         // Find the original payment
         $payment = $this->order->payments()->where('status', PaymentStatus::Completed)->first();
+
+        // Mark payment as refunded
+        if ($payment !== null) {
+            $payment->markAsRefunded();
+        }
 
         // Record refund
         $this->order->refunds()->create([
@@ -38,13 +46,14 @@ final class RefundProcessed extends Transition
             'transaction_id' => $this->transactionId,
             'amount' => $this->amount,
             'currency' => $this->order->currency,
-            'status' => PaymentStatus::Completed,
+            'status' => RefundStatus::Completed,
             'reason' => $this->reason,
-            'refunded_at' => now(),
+            'refunded_at' => $now,
             'metadata' => $this->metadata,
         ]);
 
-        // Update order state
+        // Update order state and refunded timestamp
+        $this->order->refunded_at = $now;
         $this->order->status->transitionTo(Refunded::class);
         $this->order->save();
 

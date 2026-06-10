@@ -43,16 +43,20 @@ final class OrderCompleted extends Transition
             $existingCompletionMetadata = [];
         }
 
-        $completion = array_merge($existingCompletion, [
-            'completed_at' => $completedAt->toIso8601String(),
-        ]);
+        if ($this->metadata !== [] || $existingCompletionMetadata !== []) {
+            $completion = array_merge($existingCompletion, [
+                'completed_at' => $completedAt->toIso8601String(),
+            ]);
 
-        if ($this->metadata !== []) {
-            $completion['metadata'] = array_merge($existingCompletionMetadata, $this->metadata);
+            if ($this->metadata !== []) {
+                $completion['metadata'] = array_merge($existingCompletionMetadata, $this->metadata);
+            }
+
+            $existingMetadata['completion'] = $completion;
+            $this->order->metadata = $existingMetadata;
         }
 
-        $existingMetadata['completion'] = $completion;
-        $this->order->metadata = $existingMetadata;
+        $this->order->completed_at = $completedAt;
         $this->order->status->transitionTo(Completed::class);
 
         event(new OrderCompletedEvent($this->order));

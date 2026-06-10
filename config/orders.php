@@ -36,7 +36,7 @@ return [
             'pending_payment',
             'processing',
         ],
-        'default' => 'processing',
+        'default' => 'created',
     ],
 
     'order_number' => [

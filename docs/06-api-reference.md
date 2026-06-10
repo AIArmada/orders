@@ -34,6 +34,9 @@ The main order model.
 | `shipped_at` | `Carbon\|null` | Shipment timestamp |
 | `delivered_at` | `Carbon\|null` | Delivery timestamp |
 | `canceled_at` | `Carbon\|null` | Cancellation timestamp |
+| `payment_failed_at` | `Carbon\|null` | Payment failure timestamp |
+| `refunded_at` | `Carbon\|null` | Refund timestamp |
+| `completed_at` | `Carbon\|null` | Completion timestamp |
 | `cancellation_reason` | `string\|null` | Cancellation reason |
 
 #### Relationships
@@ -107,6 +110,11 @@ Line items for orders.
 | `tax_amount` | `int` | Tax in cents |
 | `total` | `int` | Line total in cents |
 | `currency` | `string` | Currency code |
+| `status` | `OrderItemStatus` | Item lifecycle status |
+| `shipped_at` | `Carbon\|null` | Item shipped timestamp |
+| `delivered_at` | `Carbon\|null` | Item delivered timestamp |
+| `returned_at` | `Carbon\|null` | Item returned timestamp |
+| `canceled_at` | `Carbon\|null` | Item canceled timestamp |
 | `options` | `array\|null` | Product options |
 | `metadata` | `array\|null` | Additional metadata |
 
@@ -175,6 +183,8 @@ Payment records.
 | `currency` | `string` | Currency code |
 | `status` | `PaymentStatus` | Enum status |
 | `paid_at` | `Carbon\|null` | Payment timestamp |
+| `failed_at` | `Carbon\|null` | Payment failure timestamp |
+| `refunded_at` | `Carbon\|null` | Payment refund timestamp |
 | `metadata` | `array\|null` | Gateway response data |
 
 ### OrderRefund
@@ -191,8 +201,9 @@ Refund records.
 | `amount` | `int` | Refund amount in cents |
 | `currency` | `string` | Currency code |
 | `reason` | `string\|null` | Refund reason |
-| `status` | `PaymentStatus` | Enum status |
+| `status` | `RefundStatus` | Enum status |
 | `refunded_at` | `Carbon\|null` | Refund timestamp |
+| `failed_at` | `Carbon\|null` | Refund failure timestamp |
 | `metadata` | `array\|null` | Additional data |
 
 ### OrderNote
@@ -205,7 +216,7 @@ Order notes.
 | `order_id` | `string` | Parent order ID |
 | `user_id` | `string\|null` | Author user ID |
 | `content` | `text` | Note content |
-| `is_customer_visible` | `bool` | Visible to customer |
+| `visibility` | `string` | Visibility: `internal` or `customer` |
 
 #### Scopes
 
@@ -230,6 +241,39 @@ PaymentStatus::Refunded   // Fully refunded
 $status->label(): string  // "Completed"
 $status->color(): string  // "success"
 $status->isFinal(): bool  // true for Completed/Failed/Refunded
+```
+
+### RefundStatus
+
+```php
+use AIArmada\Orders\Enums\RefundStatus;
+
+RefundStatus::Pending    // Awaiting processing
+RefundStatus::Completed  // Successfully completed
+RefundStatus::Failed     // Refund failed
+
+// Methods
+$status->label(): string  // "Completed"
+$status->color(): string  // "success"
+$status->isFinal(): bool  // true for Completed/Failed
+```
+
+### OrderItemStatus
+
+```php
+use AIArmada\Orders\Enums\OrderItemStatus;
+
+OrderItemStatus::Active       // Item is active
+OrderItemStatus::Shipped      // Item has been shipped
+OrderItemStatus::Delivered    // Item has been delivered
+OrderItemStatus::Returned     // Item has been returned
+OrderItemStatus::Canceled     // Item has been canceled
+OrderItemStatus::Backordered  // Item is backordered
+
+// Methods
+$status->label(): string  // "Shipped"
+$status->color(): string  // "info"
+$status->isFinal(): bool  // true for Delivered/Returned/Canceled
 ```
 
 ## Contracts

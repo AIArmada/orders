@@ -33,6 +33,8 @@ use OwenIt\Auditing\Contracts\Auditable;
  * @property string|null $failure_reason
  * @property array|null $metadata
  * @property CarbonInterface|null $paid_at
+ * @property CarbonInterface|null $failed_at
+ * @property CarbonInterface|null $refunded_at
  * @property CarbonInterface $created_at
  * @property CarbonInterface $updated_at
  * @property-read Order $order
@@ -66,6 +68,8 @@ class OrderPayment extends Model implements Auditable
         'failure_reason',
         'metadata',
         'paid_at',
+        'failed_at',
+        'refunded_at',
     ];
 
     /**
@@ -147,6 +151,16 @@ class OrderPayment extends Model implements Auditable
     {
         $this->status = PaymentStatus::Failed;
         $this->failure_reason = $reason;
+        $this->failed_at = now();
+        $this->save();
+
+        return $this;
+    }
+
+    public function markAsRefunded(): self
+    {
+        $this->status = PaymentStatus::Refunded;
+        $this->refunded_at = now();
         $this->save();
 
         return $this;
@@ -167,7 +181,9 @@ class OrderPayment extends Model implements Auditable
             'amount' => 'integer',
             'status' => PaymentStatus::class,
             'metadata' => 'array',
-            'paid_at' => 'datetime',
+            'paid_at' => 'immutable_datetime',
+            'failed_at' => 'immutable_datetime',
+            'refunded_at' => 'immutable_datetime',
         ];
     }
 

@@ -23,7 +23,7 @@ use InvalidArgumentException;
  * @property string|null $owner_id
  * @property string|null $owner_type
  * @property string $content
- * @property bool $is_customer_visible
+ * @property string $visibility
  * @property Carbon $created_at
  * @property Carbon $updated_at
  * @property-read Order $order
@@ -50,14 +50,14 @@ final class OrderNote extends Model
         'owner_type',
         'user_id',
         'content',
-        'is_customer_visible',
+        'visibility',
     ];
 
     /**
      * @var array<string, mixed>
      */
     protected $attributes = [
-        'is_customer_visible' => false,
+        'visibility' => 'internal',
     ];
 
     public function getTable(): string
@@ -112,7 +112,7 @@ final class OrderNote extends Model
      */
     public function scopeInternal(Builder $query): Builder
     {
-        return $query->where('is_customer_visible', false);
+        return $query->where('visibility', 'internal');
     }
 
     /**
@@ -123,13 +123,13 @@ final class OrderNote extends Model
      */
     public function scopeCustomerVisible(Builder $query): Builder
     {
-        return $query->where('is_customer_visible', true);
+        return $query->where('visibility', 'customer');
     }
 
     protected function casts(): array
     {
         return [
-            'is_customer_visible' => 'boolean',
+            'visibility' => 'string',
         ];
     }
 

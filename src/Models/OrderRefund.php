@@ -11,7 +11,7 @@ use AIArmada\CommerceSupport\Support\OwnerWriteGuard;
 use AIArmada\CommerceSupport\Traits\FormatsMoney;
 use AIArmada\CommerceSupport\Traits\HasOwner;
 use AIArmada\CommerceSupport\Traits\HasOwnerScopeConfig;
-use AIArmada\Orders\Enums\PaymentStatus;
+use AIArmada\Orders\Enums\RefundStatus;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
@@ -30,11 +30,12 @@ use OwenIt\Auditing\Contracts\Auditable;
  * @property string|null $transaction_id
  * @property int $amount
  * @property string $currency
- * @property PaymentStatus $status
+ * @property RefundStatus $status
  * @property string $reason
  * @property string|null $notes
  * @property array|null $metadata
  * @property CarbonInterface|null $refunded_at
+ * @property CarbonInterface|null $failed_at
  * @property CarbonInterface $created_at
  * @property CarbonInterface $updated_at
  * @property-read Order $order
@@ -71,13 +72,14 @@ final class OrderRefund extends Model implements Auditable
         'notes',
         'metadata',
         'refunded_at',
+        'failed_at',
     ];
 
     /**
      * @var array<string, mixed>
      */
     protected $attributes = [
-        'status' => PaymentStatus::Pending,
+        'status' => RefundStatus::Pending,
         'currency' => 'MYR',
     ];
 
@@ -124,22 +126,22 @@ final class OrderRefund extends Model implements Auditable
 
     public function isPending(): bool
     {
-        return $this->status === PaymentStatus::Pending;
+        return $this->status === RefundStatus::Pending;
     }
 
     public function isCompleted(): bool
     {
-        return $this->status === PaymentStatus::Completed;
+        return $this->status === RefundStatus::Completed;
     }
 
     public function isFailed(): bool
     {
-        return $this->status === PaymentStatus::Failed;
+        return $this->status === RefundStatus::Failed;
     }
 
     public function markAsCompleted(?string $transactionId = null): self
     {
-        $this->status = PaymentStatus::Completed;
+        $this->status = RefundStatus::Completed;
         $this->refunded_at = now();
 
         if ($transactionId !== null) {
@@ -153,7 +155,8 @@ final class OrderRefund extends Model implements Auditable
 
     public function markAsFailed(string $reason): self
     {
-        $this->status = PaymentStatus::Failed;
+        $this->status = RefundStatus::Failed;
+        $this->failed_at = now();
         $this->notes = $reason;
         $this->save();
 
@@ -173,9 +176,10 @@ final class OrderRefund extends Model implements Auditable
     {
         return [
             'amount' => 'integer',
-            'status' => PaymentStatus::class,
+            'status' => RefundStatus::class,
             'metadata' => 'array',
-            'refunded_at' => 'datetime',
+            'refunded_at' => 'immutable_datetime',
+            'failed_at' => 'immutable_datetime',
         ];
     }
 

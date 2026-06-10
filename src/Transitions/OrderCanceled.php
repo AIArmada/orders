@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace AIArmada\Orders\Transitions;
 
 use AIArmada\Orders\Enums\PaymentStatus;
+use AIArmada\Orders\Enums\RefundStatus;
 use AIArmada\Orders\Events\InventoryReleaseRequired;
 use AIArmada\Orders\Events\OrderCanceled as OrderCanceledEvent;
 use AIArmada\Orders\Events\OrderCancelInitiated;
@@ -40,7 +41,7 @@ final class OrderCanceled extends Transition
         $this->order->orderNotes()->create([
             'user_id' => $this->canceledBy,
             'content' => "Order canceled: {$this->reason}",
-            'is_customer_visible' => true,
+            'visibility' => 'customer',
         ]);
 
         // Release inventory reservations (if applicable)
@@ -77,7 +78,7 @@ final class OrderCanceled extends Transition
                     'gateway' => $payment->gateway,
                     'amount' => $totalPaid,
                     'currency' => $this->order->currency,
-                    'status' => PaymentStatus::Pending,
+                    'status' => RefundStatus::Pending,
                     'reason' => 'Order canceled: ' . $this->reason,
                 ]);
             }
