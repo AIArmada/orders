@@ -16,15 +16,14 @@ return new class extends Migration
 
             $table->foreignUuid('user_id')->nullable();
             $table->text('content');
-            $table->boolean('is_customer_visible')->default(false);
+            $table->string('visibility', 20)->default('internal');
 
             $table->nullableUuidMorphs('owner');
 
             $table->timestampsTz();
 
-            // Indexes
             $table->index(['order_id', 'created_at']);
-            $table->index(['order_id', 'is_customer_visible']);
+            $table->index(['order_id', 'visibility']);
         });
     }
 

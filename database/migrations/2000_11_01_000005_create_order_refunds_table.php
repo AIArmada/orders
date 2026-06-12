@@ -21,23 +21,20 @@ return new class extends Migration
             $table->string('gateway', 50);
             $table->string('transaction_id')->nullable()->index();
 
-            // Money
             $table->unsignedBigInteger('amount')->default(0);
             $table->string('currency', 3)->default('MYR');
 
-            // Status
-            $table->string('status', 20)->default('pending')->index(); // pending, completed, failed
+            $table->string('status', 20)->default('pending')->index();
 
-            // Reason
             $table->string('reason');
             $table->text('notes')->nullable();
 
             $table->{$jsonType}('metadata')->nullable();
             $table->timestampTz('refunded_at')->nullable();
+            $table->timestampTz('failed_at')->nullable();
             $table->nullableUuidMorphs('owner');
             $table->timestampsTz();
 
-            // Indexes
             $table->index(['order_id', 'status']);
         });
     }

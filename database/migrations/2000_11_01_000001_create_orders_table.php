@@ -16,15 +16,12 @@ return new class extends Migration
         Schema::create(config('orders.database.tables.orders', 'orders'), function (Blueprint $table) use ($jsonType): void {
             $table->uuid('id')->primary();
             $table->string('order_number')->unique();
-            $table->string('status', 50)->default('processing')->index();
+            $table->string('status', 50)->default('created')->index();
 
-            // Customer relationship (polymorphic)
             $table->nullableUuidMorphs('customer');
 
-            // Owner relationship (polymorphic - for multi-tenancy)
             $table->nullableUuidMorphs('owner');
 
-            // Money fields (stored in cents)
             $table->unsignedBigInteger('subtotal')->default(0);
             $table->unsignedBigInteger('discount_total')->default(0);
             $table->unsignedBigInteger('shipping_total')->default(0);
@@ -32,23 +29,22 @@ return new class extends Migration
             $table->unsignedBigInteger('grand_total')->default(0);
             $table->string('currency', 3)->default('MYR');
 
-            // Notes
             $table->text('notes')->nullable();
             $table->text('internal_notes')->nullable();
 
-            // Metadata
             $table->{$jsonType}('metadata')->nullable();
 
-            // Timestamps
             $table->timestampTz('paid_at')->nullable()->index();
             $table->timestampTz('shipped_at')->nullable();
             $table->timestampTz('delivered_at')->nullable();
             $table->timestampTz('canceled_at')->nullable();
+            $table->timestampTz('payment_failed_at')->nullable();
+            $table->timestampTz('refunded_at')->nullable();
+            $table->timestampTz('completed_at')->nullable();
             $table->string('cancellation_reason')->nullable();
 
             $table->timestampsTz();
 
-            // Indexes
             $table->index(['status', 'created_at']);
             $table->index(['customer_type', 'customer_id', 'status']);
         });

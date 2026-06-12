@@ -17,22 +17,24 @@ return new class extends Migration
             $table->uuid('id')->primary();
             $table->foreignUuid('order_id');
 
-            // Purchasable relationship (polymorphic - Product, Variant, etc.)
             $table->nullableUuidMorphs('purchasable');
 
-            // Item details (snapshotted at order time)
             $table->string('name');
             $table->string('sku')->nullable()->index();
             $table->unsignedInteger('quantity')->default(1);
 
-            // Money fields (stored in cents)
             $table->unsignedBigInteger('unit_price')->default(0);
             $table->unsignedBigInteger('discount_amount')->default(0);
             $table->unsignedBigInteger('tax_amount')->default(0);
             $table->unsignedBigInteger('total')->default(0);
             $table->string('currency', 3)->default('MYR');
 
-            // Options (size, color, etc.)
+            $table->string('status', 30)->default('active')->index();
+            $table->timestampTz('shipped_at')->nullable();
+            $table->timestampTz('delivered_at')->nullable();
+            $table->timestampTz('returned_at')->nullable();
+            $table->timestampTz('canceled_at')->nullable();
+
             $table->{$jsonType}('options')->nullable();
             $table->{$jsonType}('metadata')->nullable();
 
@@ -40,7 +42,6 @@ return new class extends Migration
 
             $table->timestampsTz();
 
-            // Indexes
             $table->index(['order_id', 'created_at']);
         });
     }

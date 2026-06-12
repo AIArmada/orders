@@ -17,23 +17,22 @@ return new class extends Migration
             $table->uuid('id')->primary();
             $table->foreignUuid('order_id');
 
-            $table->string('gateway', 50); // 'stripe', 'chip', etc.
+            $table->string('gateway', 50);
             $table->string('transaction_id')->nullable()->index();
 
-            // Money
             $table->unsignedBigInteger('amount')->default(0);
             $table->string('currency', 3)->default('MYR');
 
-            // Status
-            $table->string('status', 20)->default('pending')->index(); // pending, completed, failed, refunded
+            $table->string('status', 20)->default('pending')->index();
             $table->text('failure_reason')->nullable();
 
             $table->{$jsonType}('metadata')->nullable();
             $table->timestampTz('paid_at')->nullable();
+            $table->timestampTz('failed_at')->nullable();
+            $table->timestampTz('refunded_at')->nullable();
             $table->nullableUuidMorphs('owner');
             $table->timestampsTz();
 
-            // Indexes
             $table->index(['order_id', 'status']);
             $table->index(['gateway', 'transaction_id']);
         });
