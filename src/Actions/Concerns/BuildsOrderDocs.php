@@ -114,7 +114,7 @@ trait BuildsOrderDocs
             'city' => $address->city,
             'state' => $address->state,
             'postcode' => $address->postcode,
-            'country' => $address->country,
+            'country_code' => $address->country_code,
             'company' => $address->company,
         ], static fn (mixed $value): bool => $value !== null && $value !== '');
     }

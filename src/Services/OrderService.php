@@ -176,7 +176,7 @@ final class OrderService implements OrderServiceInterface
         }
 
         // Get country code - convert full names to ISO 2-letter codes
-        $country = $addressData['country_code'] ?? $addressData['country'] ?? 'MY';
+        $country = $addressData['country_code'] ?? 'MY';
         if (mb_strlen($country) > 2) {
             // Map common country names to ISO codes
             $countryMap = [
@@ -200,7 +200,7 @@ final class OrderService implements OrderServiceInterface
             'city' => $addressData['city'] ?? '',
             'state' => $addressData['state'] ?? null,
             'postcode' => $addressData['postcode'] ?? $addressData['postal_code'] ?? '',
-            'country' => $country,
+            'country_code' => $country,
             'phone' => $addressData['phone'] ?? null,
             'email' => $addressData['email'] ?? null,
             'metadata' => $addressData['metadata'] ?? null,

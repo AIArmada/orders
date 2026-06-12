@@ -98,7 +98,7 @@ final class CreateOrder
             $lastName = $nameParts[1] ?? '';
         }
 
-        $country = $addressData['country_code'] ?? $addressData['country'] ?? 'MY';
+        $country = $addressData['country_code'] ?? 'MY';
         if (mb_strlen($country) > 2) {
             $countryMap = [
                 'malaysia' => 'MY',
@@ -121,7 +121,7 @@ final class CreateOrder
             'city' => $addressData['city'] ?? '',
             'state' => $addressData['state'] ?? null,
             'postcode' => $addressData['postcode'] ?? $addressData['postal_code'] ?? '',
-            'country' => $country,
+            'country_code' => $country,
             'phone' => $addressData['phone'] ?? null,
             'email' => $addressData['email'] ?? null,
             'metadata' => $addressData['metadata'] ?? null,

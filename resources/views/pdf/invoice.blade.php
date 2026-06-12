@@ -261,7 +261,7 @@
                         {{ $billingAddress->line1 }}<br>
                         @if($billingAddress->line2){{ $billingAddress->line2 }}<br>@endif
                         {{ $billingAddress->city }}, {{ $billingAddress->state }} {{ $billingAddress->postcode }}<br>
-                        {{ $billingAddress->country }}
+                        {{ $billingAddress->country_code }}
                         @if($billingAddress->phone)<br>{{ $billingAddress->phone }}@endif
                     </p>
                 </div>
@@ -276,7 +276,7 @@
                         {{ $shippingAddress->line1 }}<br>
                         @if($shippingAddress->line2){{ $shippingAddress->line2 }}<br>@endif
                         {{ $shippingAddress->city }}, {{ $shippingAddress->state }} {{ $shippingAddress->postcode }}<br>
-                        {{ $shippingAddress->country }}
+                        {{ $shippingAddress->country_code }}
                         @if($shippingAddress->phone)<br>{{ $shippingAddress->phone }}@endif
                     </p>
                 </div>

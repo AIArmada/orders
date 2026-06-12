@@ -30,7 +30,8 @@ use OwenIt\Auditing\Contracts\Auditable;
  * @property string $city
  * @property string|null $state
  * @property string $postcode
- * @property string $country
+ * @property string $country_code
+ * @property string|null $country
  * @property string|null $owner_id
  * @property string|null $owner_type
  * @property string|null $phone
@@ -69,6 +70,7 @@ final class OrderAddress extends Model implements Auditable
         'city',
         'state',
         'postcode',
+        'country_code',
         'country',
         'phone',
         'email',
@@ -80,7 +82,7 @@ final class OrderAddress extends Model implements Auditable
      */
     protected $attributes = [
         'type' => 'shipping',
-        'country' => 'MY',
+        'country_code' => 'MY',
     ];
 
     public function getTable(): string
@@ -142,7 +144,7 @@ final class OrderAddress extends Model implements Auditable
             $this->city,
             $this->state,
             $this->postcode,
-            $this->country,
+            $this->country_code,
         ]);
 
         return implode(', ', $parts);
@@ -159,7 +161,7 @@ final class OrderAddress extends Model implements Auditable
             $this->line1,
             $this->line2,
             mb_trim("{$this->city}, {$this->state} {$this->postcode}"),
-            $this->country,
+            $this->country_code,
         ]);
 
         return implode("\n", $lines);
@@ -180,7 +182,7 @@ final class OrderAddress extends Model implements Auditable
             'city' => $this->city,
             'state' => $this->state,
             'postcode' => $this->postcode,
-            'country' => $this->country,
+            'country_code' => $this->country_code,
             'phone' => $this->phone,
             'email' => $this->email,
         ];
