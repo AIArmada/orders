@@ -136,9 +136,24 @@ Configure audit logging behavior:
     'enabled' => env('ORDERS_AUDIT_ENABLED', true),
     
     // Minimum order value (cents) to trigger detailed auditing
-    'threshold' => env('ORDERS_AUDIT_THRESHOLD', 500),
+'threshold' => env('ORDERS_AUDIT_THRESHOLD', 500),
 ],
 ```
+
+## Notifications
+
+```php
+'notifications' => [
+    'payment_confirmation' => [
+        'enabled' => env('ORDERS_PAYMENT_CONFIRMATION_ENABLED', true),
+        'from_address' => env('ORDERS_PAYMENT_CONFIRMATION_FROM', 'sales@unfairadvantage.my'),
+        'from_name' => env('ORDERS_PAYMENT_CONFIRMATION_FROM_NAME'),
+        'event_name' => env('ORDERS_PAYMENT_CONFIRMATION_EVENT_NAME', 'AI Awakening'),
+    ],
+],
+```
+
+The payment confirmation notification is sent when an order transitions to paid. It routes to the order's billing address, or the shipping address when billing is missing.
 
 ## Environment Variables
 
@@ -155,6 +170,10 @@ Configure audit logging behavior:
 | `ORDERS_INTEGRATIONS_DOCS_GENERATE_PDF` | `false` | Generate PDFs when Docs invoices are auto-created |
 | `ORDERS_AUDIT_ENABLED` | `true` | Enable audit logging |
 | `ORDERS_AUDIT_THRESHOLD` | `500` | Audit threshold in cents |
+| `ORDERS_PAYMENT_CONFIRMATION_ENABLED` | `true` | Enable payment confirmation emails on `OrderPaid` |
+| `ORDERS_PAYMENT_CONFIRMATION_FROM` | `sales@unfairadvantage.my` | Mail sender address for payment confirmations |
+| `ORDERS_PAYMENT_CONFIRMATION_FROM_NAME` | `null` | Mail sender name for payment confirmations |
+| `ORDERS_PAYMENT_CONFIRMATION_EVENT_NAME` | `AI Awakening` | Event name used in the payment confirmation email |
 
 ## Full Configuration Example
 

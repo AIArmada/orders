@@ -73,4 +73,14 @@ return [
         'enabled' => env('ORDERS_AUDIT_ENABLED', true),
         'threshold' => env('ORDERS_AUDIT_THRESHOLD', 500),
     ],
+
+    /* Notifications */
+    'notifications' => [
+        'payment_confirmation' => [
+            'enabled' => (bool) env('ORDERS_PAYMENT_CONFIRMATION_ENABLED', true),
+            'from_address' => env('ORDERS_PAYMENT_CONFIRMATION_FROM', 'sales@unfairadvantage.my'),
+            'from_name' => env('ORDERS_PAYMENT_CONFIRMATION_FROM_NAME'),
+            'event_name' => env('ORDERS_PAYMENT_CONFIRMATION_EVENT_NAME', 'AI Awakening'),
+        ],
+    ],
 ];

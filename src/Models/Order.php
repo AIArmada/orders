@@ -23,6 +23,8 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
+use Illuminate\Notifications\Notifiable;
+use Illuminate\Notifications\Notification;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
 use OwenIt\Auditing\Contracts\Auditable;
@@ -80,6 +82,7 @@ class Order extends Model implements Auditable
     use HasStates;
     use HasUuids;
     use LogsCommerceActivity;
+    use Notifiable;
 
     protected static string $ownerScopeConfigKey = 'orders.owner';
 
@@ -485,6 +488,28 @@ class Order extends Model implements Auditable
             'refunded_at' => 'immutable_datetime',
             'completed_at' => 'immutable_datetime',
         ];
+    }
+
+    /**
+     * @return array<string, string>|string|null
+     */
+    public function routeNotificationForMail(Notification $notification): array | string | null
+    {
+        $address = $this->billingAddress ?? $this->shippingAddress;
+
+        if ($address === null) {
+            return null;
+        }
+
+        $email = $address->email;
+
+        if (! is_string($email) || $email === '') {
+            return null;
+        }
+
+        $name = mb_trim((string) $address->getFullName());
+
+        return $name !== '' ? [$email => $name] : $email;
     }
 
     /**
