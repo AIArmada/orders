@@ -21,7 +21,7 @@ Configure table names and JSON column types:
         'order_notes' => 'order_notes',
     ],
     // Use 'jsonb' for PostgreSQL
-    'json_column_type' => env('ORDERS_JSON_COLUMN_TYPE', 'json'),
+    'json_column_type' => env('ORDERS_JSON_COLUMN_TYPE', env('COMMERCE_JSON_COLUMN_TYPE', 'jsonb')),
 ],
 ```
 
@@ -44,15 +44,10 @@ Configure owner-based data isolation:
 
 ```php
 'owner' => [
-    // Enable owner scoping
-    'enabled' => true,
-    
-    // Include global (owner=null) records in queries
-    'include_global' => false,
-    
-    // Auto-assign current owner on order creation
-    'auto_assign_on_create' => true,
-],
+        'enabled' => env('ORDERS_OWNER_ENABLED', false),
+        'include_global' => env('ORDERS_OWNER_INCLUDE_GLOBAL', false),
+        'auto_assign_on_create' => env('ORDERS_OWNER_AUTO_ASSIGN_ON_CREATE', true),
+    ],
 ```
 
 ## Order Number Format
@@ -116,7 +111,7 @@ Define which order states are allowed as initial values and the default used whe
         'pending_payment',
         'processing',
     ],
-    'default' => 'processing',
+    'default' => 'created',
 ],
 ```
 
@@ -159,7 +154,10 @@ The payment confirmation notification is sent when an order transitions to paid.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `ORDERS_JSON_COLUMN_TYPE` | `json` | JSON column type (`json` or `jsonb`) |
+| `ORDERS_JSON_COLUMN_TYPE` | `jsonb` | JSON column type (`json` or `jsonb`) |
+| `ORDERS_OWNER_ENABLED` | `false` | Enable multitenancy/owner scoping |
+| `ORDERS_OWNER_INCLUDE_GLOBAL` | `false` | Include global records in queries |
+| `ORDERS_OWNER_AUTO_ASSIGN_ON_CREATE` | `true` | Auto-assign owner on create |
 | `ORDERS_ORDER_NUMBER_PREFIX` | `ORD` | Order number prefix |
 | `ORDERS_ORDER_NUMBER_SEPARATOR` | `-` | Order number separator |
 | `ORDERS_ORDER_NUMBER_LENGTH` | `8` | Random portion length |
@@ -190,7 +188,7 @@ return [
             'order_refunds' => 'order_refunds',
             'order_notes' => 'order_notes',
         ],
-        'json_column_type' => env('ORDERS_JSON_COLUMN_TYPE', 'json'),
+'json_column_type' => env('ORDERS_JSON_COLUMN_TYPE', env('COMMERCE_JSON_COLUMN_TYPE', 'jsonb')),
     ],
 
     'currency' => [
@@ -199,9 +197,9 @@ return [
     ],
 
     'owner' => [
-        'enabled' => true,
-        'include_global' => false,
-        'auto_assign_on_create' => true,
+        'enabled' => env('ORDERS_OWNER_ENABLED', false),
+        'include_global' => env('ORDERS_OWNER_INCLUDE_GLOBAL', false),
+        'auto_assign_on_create' => env('ORDERS_OWNER_AUTO_ASSIGN_ON_CREATE', true),
     ],
 
     'status' => [
@@ -210,7 +208,7 @@ return [
             'pending_payment',
             'processing',
         ],
-        'default' => 'processing',
+        'default' => 'created',
     ],
 
     'order_number' => [
