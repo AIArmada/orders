@@ -1,43 +1,48 @@
 {
-    "name": "aiarmada/orders",
-    "description": "Order management and transaction lifecycle for the AIArmada Commerce ecosystem",
-    "license": "MIT",
-    "type": "library",
-    "keywords": [
-        "laravel",
-        "commerce",
-        "orders",
-        "transactions",
-        "state-machine",
-        "invoices"
-    ],
-    "authors": [
-        {
-            "name": "AIArmada",
-            "email": "dev@aiarmada.com"
-        }
-    ],
-    "require": {
-        "aiarmada/commerce-support": "self.version",
-        "spatie/browsershot": "^5.3.0",
-        "spatie/laravel-pdf": "^2.9.0",
-        "php": "^8.4"
-    },
-    "autoload": {
-        "psr-4": {
-            "AIArmada\\Orders\\": "src/"
-        }
-    },
-    "extra": {
-        "laravel": {
-            "providers": [
-                "AIArmada\\Orders\\OrdersServiceProvider"
-            ]
-        }
-    },
-    "config": {
-        "sort-packages": true
-    },
-    "minimum-stability": "dev",
-    "prefer-stable": true
+  "name": "aiarmada/orders",
+  "description": "Order management and transaction lifecycle for the AIArmada Commerce ecosystem",
+  "license": "MIT",
+  "type": "library",
+  "keywords": [
+    "laravel",
+    "commerce",
+    "orders",
+    "transactions",
+    "state-machine",
+    "invoices"
+  ],
+  "authors": [
+    {
+      "name": "AIArmada",
+      "email": "dev@aiarmada.com"
+    }
+  ],
+  "require": {
+    "aiarmada/commerce-support": "self.version",
+    "spatie/browsershot": "^5.3.0",
+    "spatie/laravel-pdf": "^2.9.0",
+    "php": "^8.4"
+  },
+  "autoload": {
+    "psr-4": {
+      "AIArmada\\Orders\\": "src/"
+    }
+  },
+  "extra": {
+    "laravel": {
+      "providers": [
+        "AIArmada\\Orders\\OrdersServiceProvider"
+      ]
+    }
+  },
+  "config": {
+    "sort-packages": true
+  },
+  "minimum-stability": "dev",
+  "prefer-stable": true,
+  "suggest": {
+    "aiarmada/docs": "Optional integration",
+    "aiarmada/inventory": "Optional integration",
+    "aiarmada/shipping": "Optional integration"
+  }
 }

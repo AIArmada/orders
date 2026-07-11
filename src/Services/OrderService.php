@@ -5,228 +5,68 @@ declare(strict_types=1);
 namespace AIArmada\Orders\Services;
 
 use AIArmada\CommerceSupport\Support\OwnerContext;
+use AIArmada\Orders\Actions\CreateOrder;
+use AIArmada\Orders\Actions\CreateOrderFromCart;
+use AIArmada\Orders\Actions\RegisterOrderPayment;
 use AIArmada\Orders\Contracts\OrderServiceInterface;
-use AIArmada\Orders\Events\OrderCreated;
 use AIArmada\Orders\Models\Order;
 use AIArmada\Orders\Models\OrderItem;
-use AIArmada\Orders\States\Created;
-use AIArmada\Orders\States\PendingPayment;
 use AIArmada\Orders\Transitions\DeliveryConfirmed;
 use AIArmada\Orders\Transitions\OrderCanceled;
 use AIArmada\Orders\Transitions\OrderCompleted;
-use AIArmada\Orders\Transitions\PaymentConfirmed;
 use AIArmada\Orders\Transitions\RefundProcessed;
 use AIArmada\Orders\Transitions\ShipmentCreated;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
 /**
- * Order service for order lifecycle management.
+ * Compatibility facade for order lifecycle operations.
+ *
+ * Creation is owned by the CreateOrder actions; this service remains as the
+ * stable interface used by existing integrations and Filament surfaces.
  */
 final class OrderService implements OrderServiceInterface
 {
-    /**
-     * Create a new order from cart data.
-     *
-     * @param  array<string, mixed>  $orderData  Order header data
-     * @param  array<array<string, mixed>>  $items  Array of item data
-     * @param  array<string, mixed>|null  $billingAddress  Billing address data
-     * @param  array<string, mixed>|null  $shippingAddress  Shipping address data
-     */
     public function createOrder(
         array $orderData,
         array $items,
         ?array $billingAddress = null,
         ?array $shippingAddress = null,
     ): Order {
-        $this->assertOwnerBoundaryForCreation(__METHOD__);
-
-        return DB::transaction(function () use ($orderData, $items, $billingAddress, $shippingAddress): Order {
-            // Create the order
-            $order = Order::create([
-                'order_number' => $orderData['order_number'] ?? Order::generateOrderNumber(),
-                'status' => Created::class,
-                'customer_id' => $orderData['customer_id'] ?? null,
-                'customer_type' => $orderData['customer_type'] ?? null,
-                'subtotal' => $orderData['subtotal'] ?? 0,
-                'discount_total' => $orderData['discount_total'] ?? 0,
-                'shipping_total' => $orderData['shipping_total'] ?? 0,
-                'tax_total' => $orderData['tax_total'] ?? 0,
-                'grand_total' => $orderData['grand_total'] ?? 0,
-                'currency' => $orderData['currency'] ?? config('orders.currency.default', 'MYR'),
-                'notes' => $orderData['notes'] ?? null,
-                'metadata' => $orderData['metadata'] ?? null,
-            ]);
-
-            // Add order items
-            foreach ($items as $itemData) {
-                $this->addItem($order, $itemData);
-            }
-
-            // Add billing address
-            if ($billingAddress !== null) {
-                $this->addAddress($order, $billingAddress, 'billing');
-            }
-
-            // Add shipping address
-            if ($shippingAddress !== null) {
-                $this->addAddress($order, $shippingAddress, 'shipping');
-            }
-
-            // Transition to pending payment
-            $order->status->transitionTo(PendingPayment::class);
-
-            // Dispatch event
-            event(new OrderCreated($order));
-
-            return $order->fresh(['items', 'billingAddress', 'shippingAddress']);
-        });
+        return (new CreateOrder)->execute($orderData, $items, $billingAddress, $shippingAddress);
     }
 
-    /**
-     * Create order from a cart object (if cart package is available).
-     *
-     * @param  object  $cart  Cart object with items and totals
-     * @param  Model  $customer  Customer model
-     * @param  array<string, mixed>|null  $billingAddress
-     * @param  array<string, mixed>|null  $shippingAddress
-     */
     public function createFromCart(
         object $cart,
         Model $customer,
         ?array $billingAddress = null,
         ?array $shippingAddress = null,
     ): Order {
-        $this->assertOwnerBoundaryForCreation(__METHOD__);
-
-        // Extract cart data
-        $orderData = [
-            'customer_id' => $customer->getKey(),
-            'customer_type' => $customer->getMorphClass(),
-            'subtotal' => $cart->subtotal ?? 0,
-            'discount_total' => $cart->discount ?? 0,
-            'shipping_total' => $cart->shipping ?? 0,
-            'tax_total' => $cart->tax ?? 0,
-            'grand_total' => $cart->total ?? 0,
-            'currency' => $cart->currency ?? config('orders.currency.default', 'MYR'),
-            'metadata' => [
-                'cart_id' => $cart->id ?? null,
-                'session_id' => session()->getId(),
-            ],
-        ];
-
-        // Convert cart items to order item format
-        $items = [];
-        foreach ($cart->items ?? [] as $cartItem) {
-            $items[] = [
-                'purchasable_id' => $cartItem->purchasable_id ?? null,
-                'purchasable_type' => $cartItem->purchasable_type ?? null,
-                'name' => $cartItem->name ?? 'Unknown Item',
-                'sku' => $cartItem->sku ?? null,
-                'quantity' => $cartItem->quantity ?? 1,
-                'unit_price' => $cartItem->price ?? 0,
-                'discount_amount' => $cartItem->discount ?? 0,
-                'tax_amount' => $cartItem->tax ?? 0,
-                'options' => $cartItem->options ?? null,
-                'metadata' => $cartItem->metadata ?? null,
-            ];
-        }
-
-        return $this->createOrder($orderData, $items, $billingAddress, $shippingAddress);
+        return (new CreateOrderFromCart(new CreateOrder))->execute(
+            $cart,
+            $customer,
+            $billingAddress,
+            $shippingAddress,
+        );
     }
 
-    /**
-     * Add an item to an order.
-     *
-     * @param  array<string, mixed>  $itemData
-     */
     public function addItem(Order $order, array $itemData): OrderItem
     {
-        return $order->items()->create([
-            'purchasable_id' => $itemData['purchasable_id'] ?? null,
-            'purchasable_type' => $itemData['purchasable_type'] ?? null,
-            'name' => $itemData['name'],
-            'sku' => $itemData['sku'] ?? null,
-            'quantity' => $itemData['quantity'] ?? 1,
-            'unit_price' => $itemData['unit_price'] ?? 0,
-            'discount_amount' => $itemData['discount_amount'] ?? 0,
-            'tax_amount' => $itemData['tax_amount'] ?? 0,
-            'currency' => $itemData['currency'] ?? $order->currency,
-            'options' => $itemData['options'] ?? null,
-            'metadata' => $itemData['metadata'] ?? null,
-        ]);
+        return (new CreateOrder)->addItem($order, $itemData);
     }
 
-    /**
-     * Add an address to an order.
-     *
-     * @param  array<string, mixed>  $addressData
-     */
     public function addAddress(Order $order, array $addressData, string $type): void
     {
-        // Handle 'name' field by splitting into first_name/last_name if not provided separately
-        $firstName = $addressData['first_name'] ?? null;
-        $lastName = $addressData['last_name'] ?? null;
-
-        if ($firstName === null && isset($addressData['name'])) {
-            $nameParts = explode(' ', mb_trim($addressData['name']), 2);
-            $firstName = $nameParts[0] ?? '';
-            $lastName = $nameParts[1] ?? '';
-        }
-
-        // Get country code - convert full names to ISO 2-letter codes
-        $country = $addressData['country_code'] ?? 'MY';
-        if (mb_strlen($country) > 2) {
-            // Map common country names to ISO codes
-            $countryMap = [
-                'malaysia' => 'MY',
-                'singapore' => 'SG',
-                'indonesia' => 'ID',
-                'brunei' => 'BN',
-                'thailand' => 'TH',
-                'philippines' => 'PH',
-            ];
-            $country = $countryMap[mb_strtolower($country)] ?? 'MY';
-        }
-
-        $order->addresses()->create([
-            'type' => $type,
-            'first_name' => $firstName ?? '',
-            'last_name' => $lastName ?? '',
-            'company' => $addressData['company'] ?? null,
-            'line1' => $addressData['line1'] ?? $addressData['address_line_1'] ?? $addressData['address'] ?? '',
-            'line2' => $addressData['line2'] ?? $addressData['address_line_2'] ?? null,
-            'city' => $addressData['city'] ?? '',
-            'state' => $addressData['state'] ?? null,
-            'postcode' => $addressData['postcode'] ?? $addressData['postal_code'] ?? '',
-            'country_code' => $country,
-            'phone' => $addressData['phone'] ?? null,
-            'email' => $addressData['email'] ?? null,
-            'metadata' => $addressData['metadata'] ?? null,
-        ]);
+        (new CreateOrder)->addAddress($order, $addressData, $type);
     }
 
-    /**
-     * Cancel an order.
-     */
     public function cancel(Order $order, string $reason, ?string $canceledBy = null): Order
     {
         $this->assertOwnerBoundaryForMutation($order, __METHOD__);
 
-        if (! $order->canBeCanceled()) {
-            throw new RuntimeException("Order {$order->order_number} cannot be canceled in its current state.");
-        }
-
-        // Use transition class for proper state change with side effects
-        $transition = new OrderCanceled($order, $reason, $canceledBy);
-
-        return $transition->handle();
+        return (new OrderCanceled($order, $reason, $canceledBy))->handle();
     }
 
-    /**
-     * Confirm payment for an order.
-     */
     public function confirmPayment(
         Order $order,
         string $transactionId,
@@ -234,22 +74,9 @@ final class OrderService implements OrderServiceInterface
         int $amount,
         array $metadata = [],
     ): Order {
-        $this->assertOwnerBoundaryForMutation($order, __METHOD__);
-
-        $transition = new PaymentConfirmed(
-            $order,
-            $transactionId,
-            $gateway,
-            $amount,
-            $metadata,
-        );
-
-        return $transition->handle();
+        return (new RegisterOrderPayment)->execute($order, $transactionId, $gateway, $amount, $metadata);
     }
 
-    /**
-     * Mark order as shipped.
-     */
     public function ship(
         Order $order,
         string $carrier,
@@ -259,44 +86,23 @@ final class OrderService implements OrderServiceInterface
     ): Order {
         $this->assertOwnerBoundaryForMutation($order, __METHOD__);
 
-        $transition = new ShipmentCreated(
-            $order,
-            $carrier,
-            $trackingNumber,
-            $shipmentId,
-            $metadata,
-        );
-
-        return $transition->handle();
+        return (new ShipmentCreated($order, $carrier, $trackingNumber, $shipmentId, $metadata))->handle();
     }
 
-    /**
-     * Confirm order delivery.
-     */
     public function confirmDelivery(Order $order, array $metadata = []): Order
     {
         $this->assertOwnerBoundaryForMutation($order, __METHOD__);
 
-        $transition = new DeliveryConfirmed($order, $metadata);
-
-        return $transition->handle();
+        return (new DeliveryConfirmed($order, $metadata))->handle();
     }
 
-    /**
-     * Mark order as completed.
-     */
     public function complete(Order $order, array $metadata = []): Order
     {
         $this->assertOwnerBoundaryForMutation($order, __METHOD__);
 
-        $transition = new OrderCompleted($order, $metadata);
-
-        return $transition->handle();
+        return (new OrderCompleted($order, $metadata))->handle();
     }
 
-    /**
-     * Process refund for returned order.
-     */
     public function processRefund(
         Order $order,
         int $amount,
@@ -310,20 +116,9 @@ final class OrderService implements OrderServiceInterface
             throw new RuntimeException("Order {$order->order_number} cannot be refunded in its current state.");
         }
 
-        $transition = new RefundProcessed(
-            $order,
-            $amount,
-            $transactionId,
-            $reason,
-            $metadata,
-        );
-
-        return $transition->handle();
+        return (new RefundProcessed($order, $amount, $transactionId, $reason, $metadata))->handle();
     }
 
-    /**
-     * Recalculate order totals from items.
-     */
     public function recalculateTotals(Order $order): Order
     {
         $this->assertOwnerBoundaryForMutation($order, __METHOD__);
@@ -331,23 +126,6 @@ final class OrderService implements OrderServiceInterface
         $order->recalculateTotals()->save();
 
         return $order->fresh();
-    }
-
-    private function assertOwnerBoundaryForCreation(string $operation): void
-    {
-        if (! (bool) config('orders.owner.enabled', true)) {
-            return;
-        }
-
-        $owner = OwnerContext::resolve();
-
-        OwnerContext::assertResolvedOrExplicitGlobal(
-            $owner,
-            sprintf(
-                'Owner context is required for %s when orders owner mode is enabled. Use OwnerContext::withOwner($owner, ...) or OwnerContext::withOwner(null, ...) for explicit global operations.',
-                $operation,
-            ),
-        );
     }
 
     private function assertOwnerBoundaryForMutation(Order $order, string $operation): void
@@ -361,7 +139,7 @@ final class OrderService implements OrderServiceInterface
         if ($order->hasOwner()) {
             if ($owner === null) {
                 throw new RuntimeException(sprintf(
-                    'A matching owner context is required for %s when mutating owned orders. Use OwnerContext::withOwner($owner, ...).',
+                    'A matching owner context is required for %s when mutating owned orders.',
                     $operation,
                 ));
             }
@@ -378,17 +156,11 @@ final class OrderService implements OrderServiceInterface
 
         OwnerContext::assertResolvedOrExplicitGlobal(
             $owner,
-            sprintf(
-                'Explicit global owner context is required for %s when mutating global orders. Use OwnerContext::withOwner(null, ...).',
-                $operation,
-            ),
+            sprintf('Explicit global owner context is required for %s.', $operation),
         );
 
         if (! OwnerContext::isExplicitGlobal()) {
-            throw new RuntimeException(sprintf(
-                'Explicit global owner context is required for %s when mutating global orders. Use OwnerContext::withOwner(null, ...).',
-                $operation,
-            ));
+            throw new RuntimeException(sprintf('Explicit global owner context is required for %s.', $operation));
         }
     }
 }

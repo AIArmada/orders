@@ -67,7 +67,7 @@ final class CreateOrder
     /**
      * @param  array<string, mixed>  $itemData
      */
-    private function addItem(Order $order, array $itemData): OrderItem
+    public function addItem(Order $order, array $itemData): OrderItem
     {
         return $order->items()->create([
             'purchasable_id' => $itemData['purchasable_id'] ?? null,
@@ -87,7 +87,7 @@ final class CreateOrder
     /**
      * @param  array<string, mixed>  $addressData
      */
-    private function addAddress(Order $order, array $addressData, string $type): void
+    public function addAddress(Order $order, array $addressData, string $type): void
     {
         $firstName = $addressData['first_name'] ?? null;
         $lastName = $addressData['last_name'] ?? null;

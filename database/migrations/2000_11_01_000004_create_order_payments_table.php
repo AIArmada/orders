@@ -35,6 +35,10 @@ return new class extends Migration
 
             $table->index(['order_id', 'status']);
             $table->index(['gateway', 'transaction_id']);
+            $table->unique(
+                ['order_id', 'gateway', 'transaction_id'],
+                'order_payments_order_gateway_transaction_unique',
+            );
         });
     }
 
