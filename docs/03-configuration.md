@@ -20,8 +20,6 @@ Configure table names and JSON column types:
         'order_refunds' => 'order_refunds',
         'order_notes' => 'order_notes',
     ],
-    // Use 'jsonb' for PostgreSQL
-    'json_column_type' => env('ORDERS_JSON_COLUMN_TYPE', env('COMMERCE_JSON_COLUMN_TYPE', 'jsonb')),
 ],
 ```
 
@@ -37,6 +35,20 @@ Set the default currency and decimal precision:
 ```
 
 All monetary values are stored in the smallest currency unit (e.g., cents for USD/MYR).
+
+## Invoice company details
+
+The bundled invoice template renders these optional sender details:
+
+```php
+'company' => [
+    'address' => env('ORDERS_COMPANY_ADDRESS', ''),
+    'phone' => env('ORDERS_COMPANY_PHONE', ''),
+    'email' => env('ORDERS_COMPANY_EMAIL', ''),
+],
+```
+
+The company name continues to use `config('app.name')`.
 
 ## Multi-tenancy (Owner Scoping)
 
@@ -164,6 +176,9 @@ The payment confirmation notification is sent when an order transitions to paid.
 | `ORDERS_ORDER_NUMBER_USE_DATE` | `true` | Include date in order number |
 | `ORDERS_ORDER_NUMBER_DATE_FORMAT` | `Ymd` | Date format for order numbers |
 | `ORDERS_INVOICE_PREFIX` | `INV` | Invoice number prefix |
+| `ORDERS_COMPANY_ADDRESS` | empty | Sender address rendered on invoices |
+| `ORDERS_COMPANY_PHONE` | empty | Sender phone rendered on invoices |
+| `ORDERS_COMPANY_EMAIL` | empty | Sender email rendered on invoices |
 | `ORDERS_INTEGRATIONS_DOCS_ENABLED` | `false` | Enable automatic Docs invoice creation on `OrderPaid` |
 | `ORDERS_INTEGRATIONS_DOCS_GENERATE_PDF` | `false` | Generate PDFs when Docs invoices are auto-created |
 | `ORDERS_AUDIT_ENABLED` | `true` | Enable audit logging |
@@ -188,12 +203,17 @@ return [
             'order_refunds' => 'order_refunds',
             'order_notes' => 'order_notes',
         ],
-'json_column_type' => env('ORDERS_JSON_COLUMN_TYPE', env('COMMERCE_JSON_COLUMN_TYPE', 'jsonb')),
     ],
 
     'currency' => [
         'default' => 'MYR',
         'decimal_places' => 2,
+    ],
+
+    'company' => [
+        'address' => env('ORDERS_COMPANY_ADDRESS', ''),
+        'phone' => env('ORDERS_COMPANY_PHONE', ''),
+        'email' => env('ORDERS_COMPANY_EMAIL', ''),
     ],
 
     'owner' => [

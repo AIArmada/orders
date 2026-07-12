@@ -13,13 +13,19 @@ return [
             'order_refunds' => 'order_refunds',
             'order_notes' => 'order_notes',
         ],
-        'json_column_type' => env('ORDERS_JSON_COLUMN_TYPE', env('COMMERCE_JSON_COLUMN_TYPE', 'jsonb')),
     ],
 
     /* Defaults */
     'currency' => [
         'default' => 'MYR',
         'decimal_places' => 2,
+    ],
+
+    /* Invoice company details */
+    'company' => [
+        'address' => env('ORDERS_COMPANY_ADDRESS', ''),
+        'phone' => env('ORDERS_COMPANY_PHONE', ''),
+        'email' => env('ORDERS_COMPANY_EMAIL', ''),
     ],
 
     /* Features */
