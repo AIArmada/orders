@@ -32,8 +32,10 @@ final class OrderService implements OrderServiceInterface
         array $items,
         ?array $billingAddress = null,
         ?array $shippingAddress = null,
+        ?string $intakeSource = null,
+        ?string $intakeId = null,
     ): Order {
-        return (new CreateOrder)->execute($orderData, $items, $billingAddress, $shippingAddress);
+        return (new CreateOrder)->execute($orderData, $items, $billingAddress, $shippingAddress, $intakeSource, $intakeId);
     }
 
     public function createFromCart(
@@ -41,12 +43,16 @@ final class OrderService implements OrderServiceInterface
         Model $customer,
         ?array $billingAddress = null,
         ?array $shippingAddress = null,
+        ?string $intakeSource = null,
+        ?string $intakeId = null,
     ): Order {
         return (new CreateOrderFromCart(new CreateOrder))->execute(
             $cart,
             $customer,
             $billingAddress,
             $shippingAddress,
+            $intakeSource,
+            $intakeId,
         );
     }
 

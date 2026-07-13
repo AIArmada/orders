@@ -267,3 +267,37 @@ $pending = Order::whereState('status', [
 // Orders not in state
 $notShipped = Order::whereNotState('status', Shipped::class)->get();
 ```
+
+## Inventory Integration Event Path
+
+When inventory integration is enabled (`orders.integrations.inventory.enabled`), the Orders package dispatches inventory commands through a single canonical event path per operation:
+
+### Deduction (Payment Confirmed)
+
+```
+PaymentConfirmed transition completes
+  → (after DB commit)
+  → OrderProcessingStarted event
+  → DeductInventoryOnPaymentConfirmed listener
+  → InventoryDeductionRequired event
+  → Inventory package handles deduction once
+```
+
+Inventory deduction is not dispatched synchronously from the transition itself. This guarantees one logical deduction per payment confirmation, even under duplicate event delivery.
+
+### Release (Order Canceled)
+
+```
+OrderCanceled transition completes
+  → (after DB commit)
+  → OrderCancelInitiated event
+  → ReleaseInventoryOnOrderCanceled listener
+  → InventoryReleaseRequired event
+  → Inventory package handles release once
+```
+
+Inventory release is not dispatched synchronously from the transition itself. This guarantees one logical release per cancellation, even under duplicate event delivery.
+
+### Idempotency
+
+The Inventory package uses a durable `InventoryOperation` record with a unique key on `(order_id, kind)` to prevent duplicate inventory mutations from retried or replayed events. Both deduction and release operations are safe to deliver more than once.

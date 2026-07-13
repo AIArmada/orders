@@ -16,12 +16,16 @@ final class CreateOrderFromCart
     /**
      * @param  array<string, mixed>|null  $billingAddress
      * @param  array<string, mixed>|null  $shippingAddress
+     * @param  string|null  $intakeSource  Deduplication identity source
+     * @param  string|null  $intakeId  Deduplication identity
      */
     public function execute(
         object $cart,
         Model $customer,
         ?array $billingAddress = null,
         ?array $shippingAddress = null,
+        ?string $intakeSource = null,
+        ?string $intakeId = null,
     ): Order {
         $orderData = [
             'customer_id' => $customer->getKey(),
@@ -54,6 +58,6 @@ final class CreateOrderFromCart
             ];
         }
 
-        return $this->createOrder->execute($orderData, $items, $billingAddress, $shippingAddress);
+        return $this->createOrder->execute($orderData, $items, $billingAddress, $shippingAddress, $intakeSource, $intakeId);
     }
 }

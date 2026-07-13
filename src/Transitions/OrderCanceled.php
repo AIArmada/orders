@@ -6,11 +6,11 @@ namespace AIArmada\Orders\Transitions;
 
 use AIArmada\Orders\Enums\PaymentStatus;
 use AIArmada\Orders\Enums\RefundStatus;
-use AIArmada\Orders\Events\InventoryReleaseRequired;
 use AIArmada\Orders\Events\OrderCanceled as OrderCanceledEvent;
 use AIArmada\Orders\Events\OrderCancelInitiated;
 use AIArmada\Orders\Models\Order;
 use AIArmada\Orders\States\Canceled;
+use Illuminate\Support\Facades\DB;
 use Spatie\ModelStates\Transition;
 
 /**
@@ -31,39 +31,33 @@ final class OrderCanceled extends Transition
 
     public function handle(): Order
     {
-        // Update order state and canceled timestamp
-        $this->order->status->transitionTo(Canceled::class);
-        $this->order->canceled_at = now();
-        $this->order->cancellation_reason = $this->reason;
-        $this->order->save();
+        return DB::transaction(function (): Order {
+            $this->order->status->transitionTo(Canceled::class);
+            $this->order->canceled_at = now();
+            $this->order->cancellation_reason = $this->reason;
+            $this->order->save();
 
-        // Add cancellation note
-        $this->order->orderNotes()->create([
-            'user_id' => $this->canceledBy,
-            'content' => "Order canceled: {$this->reason}",
-            'visibility' => 'customer',
-        ]);
+            $this->order->orderNotes()->create([
+                'user_id' => $this->canceledBy,
+                'content' => "Order canceled: {$this->reason}",
+                'visibility' => 'customer',
+            ]);
 
-        // Release inventory reservations (if applicable)
-        if (config('orders.integrations.inventory.enabled', true)) {
-            $this->releaseInventory();
-        }
+            if ($this->issueRefund && $this->order->isPaid()) {
+                $this->initiateRefund();
+            }
 
-        // Issue refund if order was paid
-        if ($this->issueRefund && $this->order->isPaid()) {
-            $this->initiateRefund();
-        }
+            $order = $this->order;
+            $reason = $this->reason;
+            $canceledBy = $this->canceledBy;
 
-        // Dispatch events
-        event(new OrderCanceledEvent($this->order, $this->reason, $this->canceledBy));
-        event(new OrderCancelInitiated($this->order, $this->reason, $this->canceledBy));
+            DB::afterCommit(function () use ($order, $reason, $canceledBy): void {
+                event(new OrderCanceledEvent($order, $reason, $canceledBy));
+                event(new OrderCancelInitiated($order, $reason, $canceledBy));
+            });
 
-        return $this->order;
-    }
-
-    protected function releaseInventory(): void
-    {
-        event(new InventoryReleaseRequired($this->order));
+            return $this->order;
+        });
     }
 
     protected function initiateRefund(): void

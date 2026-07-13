@@ -20,12 +20,16 @@ interface OrderServiceInterface
      * @param  array<array<string, mixed>>  $items
      * @param  array<string, mixed>|null  $billingAddress
      * @param  array<string, mixed>|null  $shippingAddress
+     * @param  string|null  $intakeSource  Deduplication identity source (e.g. 'checkout', 'api')
+     * @param  string|null  $intakeId  Deduplication identity (e.g. session ID, idempotency key)
      */
     public function createOrder(
         array $orderData,
         array $items,
         ?array $billingAddress = null,
         ?array $shippingAddress = null,
+        ?string $intakeSource = null,
+        ?string $intakeId = null,
     ): Order;
 
     /**
@@ -33,12 +37,16 @@ interface OrderServiceInterface
      *
      * @param  array<string, mixed>|null  $billingAddress
      * @param  array<string, mixed>|null  $shippingAddress
+     * @param  string|null  $intakeSource  Deduplication identity source
+     * @param  string|null  $intakeId  Deduplication identity
      */
     public function createFromCart(
         object $cart,
         Model $customer,
         ?array $billingAddress = null,
         ?array $shippingAddress = null,
+        ?string $intakeSource = null,
+        ?string $intakeId = null,
     ): Order;
 
     /**

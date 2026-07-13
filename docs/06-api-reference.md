@@ -309,7 +309,7 @@ interface FulfillmentHandler
      */
     public function createShipment(Order $order, string $carrier, array $options = []): array;
     public function getTrackingUrl(Order $order): ?string;
-    public function cancelShipment(Order $order): bool;
+    public function cancelShipment(Order $order): CarrierOperationResult;
 }
 ```
 

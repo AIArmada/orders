@@ -33,6 +33,8 @@ use Spatie\ModelStates\HasStates;
 /**
  * @property string $id
  * @property string $order_number
+ * @property string|null $intake_source
+ * @property string|null $intake_id
  * @property OrderStatus $status
  * @property string|null $customer_id
  * @property string|null $customer_type
@@ -92,6 +94,8 @@ class Order extends Model implements Auditable
 
     protected $fillable = [
         'order_number',
+        'intake_source',
+        'intake_id',
         'status',
         'customer_id',
         'customer_type',

@@ -4,10 +4,8 @@ declare(strict_types=1);
 
 namespace AIArmada\Orders\Transitions;
 
-use AIArmada\Inventory\Services\InventoryService;
 use AIArmada\Orders\Enums\PaymentStatus;
 use AIArmada\Orders\Events\CommissionAttributionRequired;
-use AIArmada\Orders\Events\InventoryDeductionRequired;
 use AIArmada\Orders\Events\OrderPaid;
 use AIArmada\Orders\Events\OrderProcessingStarted;
 use AIArmada\Orders\Models\Order;
@@ -84,14 +82,6 @@ final class PaymentConfirmed extends Transition
                 return $this->handleExistingPayment($existingPayment, $originalOrder);
             }
 
-            // Deduct inventory (if package present)
-            if (
-                config('orders.integrations.inventory.enabled', true)
-                && class_exists(InventoryService::class)
-            ) {
-                $this->deductInventory();
-            }
-
             // Attribute affiliate commission (if package present)
             if (config('orders.integrations.affiliates.enabled', true)) {
                 $this->attributeCommission();
@@ -149,14 +139,6 @@ final class PaymentConfirmed extends Transition
         $originalOrder->setRawAttributes($this->order->getAttributes());
         $originalOrder->setRelations($this->order->getRelations());
         $originalOrder->syncOriginal();
-    }
-
-    /**
-     * Deduct inventory for all order items.
-     */
-    protected function deductInventory(): void
-    {
-        event(new InventoryDeductionRequired($this->order));
     }
 
     /**

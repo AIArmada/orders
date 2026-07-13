@@ -29,6 +29,39 @@ $order = CreateOrderFromCart::run($cart, [
 ]);
 ```
 
+### Durable Intake Identity
+
+Prevent duplicate orders from retries and concurrent submissions using intake identity. Pass `intakeSource` and `intakeId` to make order creation idempotent:
+
+```php
+use AIArmada\Orders\Actions\CreateOrder;
+
+// Idempotent creation — same intake identity returns the existing order
+$order = CreateOrder::run([
+    'currency' => 'MYR',
+    'subtotal' => 5000,
+    'grand_total' => 5000,
+], intakeSource: 'checkout', intakeId: 'sess_abc123');
+
+// Exact retry — returns the same order, no duplicate
+$retry = CreateOrder::run([
+    'currency' => 'MYR',
+    'subtotal' => 5000,
+    'grand_total' => 5000,
+], intakeSource: 'checkout', intakeId: 'sess_abc123');
+
+assert($retry->id === $order->id); // Same order
+```
+
+**Intake identity guarantees:**
+
+- **Same intake (source + id) returns the existing order.** Items, addresses, and relationships are loaded on the returned model.
+- **Database-level unique constraint** on `(owner_type, owner_id, intake_source, intake_id)` prevents concurrent duplicates.
+- **Without intake identity,** each call creates a new order (backward compatible).
+- **Different source with same id** creates separate orders (e.g., `checkout` vs `api` with same session id).
+
+The Checkout `CreateOrderStep` uses `intakeSource: 'checkout'` with the session id as `intakeId`.
+
 ### Payment & Refunds
 
 ```php
