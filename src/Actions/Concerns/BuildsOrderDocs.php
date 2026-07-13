@@ -33,10 +33,10 @@ trait BuildsOrderDocs
             status: DocStatus::fromString(Paid::class),
             issueDate: $order->paid_at ?? now(),
             items: $this->buildItems($order),
-            subtotal: $this->toMajor($order->subtotal),
-            total: $this->toMajor($order->grand_total),
-            taxAmount: $this->toMajor($order->tax_total),
-            discountAmount: $this->toMajor($order->discount_total),
+            subtotalMinor: $order->subtotal,
+            totalMinor: $order->grand_total,
+            taxAmountMinor: $order->tax_total,
+            discountAmountMinor: $order->discount_total,
             currency: $order->currency,
             notes: $order->notes,
             customerData: $this->buildCustomerData($order),
@@ -78,7 +78,7 @@ trait BuildsOrderDocs
                     'name' => $item->name,
                     'description' => $item->sku ? "SKU: {$item->sku}" : null,
                     'quantity' => $item->quantity,
-                    'price' => $this->toMajor($item->unit_price),
+                    'unit_price_minor' => $item->unit_price,
                 ], static fn (mixed $value): bool => $value !== null && $value !== '');
             })
             ->values()
@@ -88,7 +88,7 @@ trait BuildsOrderDocs
             $items[] = [
                 'name' => 'Shipping',
                 'quantity' => 1,
-                'price' => $this->toMajor($order->shipping_total),
+                'unit_price_minor' => $order->shipping_total,
             ];
         }
 
@@ -119,11 +119,4 @@ trait BuildsOrderDocs
         ], static fn (mixed $value): bool => $value !== null && $value !== '');
     }
 
-    private function toMajor(int $amount): float
-    {
-        $decimals = (int) config('orders.currency.decimal_places', 2);
-        $divisor = 10 ** max(0, $decimals);
-
-        return $amount / $divisor;
-    }
 }
