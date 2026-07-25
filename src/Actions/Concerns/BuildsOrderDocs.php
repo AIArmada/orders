@@ -118,5 +118,4 @@ trait BuildsOrderDocs
             'company' => $address->company,
         ], static fn (mixed $value): bool => $value !== null && $value !== '');
     }
-
 }

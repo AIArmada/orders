@@ -38,6 +38,9 @@ return new class extends Migration
             $table->timestampTz('delivered_at')->nullable();
             $table->timestampTz('canceled_at')->nullable();
             $table->timestampTz('payment_failed_at')->nullable();
+            $table->timestampTz('held_at')->nullable();
+            $table->timestampTz('flagged_at')->nullable();
+            $table->timestampTz('returned_at')->nullable();
             $table->timestampTz('refunded_at')->nullable();
             $table->timestampTz('completed_at')->nullable();
             $table->string('cancellation_reason')->nullable();

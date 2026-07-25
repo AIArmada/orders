@@ -35,6 +35,9 @@ The main order model.
 | `delivered_at` | `Carbon\|null` | Delivery timestamp |
 | `canceled_at` | `Carbon\|null` | Cancellation timestamp |
 | `payment_failed_at` | `Carbon\|null` | Payment failure timestamp |
+| `held_at` | `Carbon\|null` | Hold timestamp (toggle: set on hold, cleared on release) |
+| `flagged_at` | `Carbon\|null` | Fraud flag timestamp (terminal, set once) |
+| `returned_at` | `Carbon\|null` | Return timestamp (historical fact) |
 | `refunded_at` | `Carbon\|null` | Refund timestamp |
 | `completed_at` | `Carbon\|null` | Completion timestamp |
 | `cancellation_reason` | `string\|null` | Cancellation reason |
@@ -74,6 +77,9 @@ $order->customer(): MorphTo
 $order->canBeCanceled(): bool
 $order->canBeRefunded(): bool
 $order->isFinal(): bool
+$order->isOnHold(): bool
+$order->isFlaggedAsFraud(): bool
+$order->isReturned(): bool
 
 // Payment helpers
 $order->isPaid(): bool
@@ -350,4 +356,8 @@ interface PaymentHandler
 | `OrderShipped` | `Order $order`, `string $carrier`, `string $trackingNumber`, `?string $shipmentId` |
 | `OrderDelivered` | `Order $order` |
 | `OrderCanceled` | `Order $order`, `string $reason`, `?string $canceledBy` |
+| `OrderHeld` | `Order $order`, `string $reason`, `?string $heldBy` |
+| `OrderHoldReleased` | `Order $order`, `string $reason` |
+| `OrderFlaggedAsFraud` | `Order $order`, `string $reason`, `?string $flaggedBy` |
+| `OrderReturned` | `Order $order`, `?string $reason` |
 | `OrderRefunded` | `Order $order`, `int $amount`, `string $reason` |

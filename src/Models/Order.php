@@ -54,6 +54,9 @@ use Spatie\ModelStates\HasStates;
  * @property CarbonInterface|null $delivered_at
  * @property CarbonInterface|null $canceled_at
  * @property CarbonInterface|null $payment_failed_at
+ * @property CarbonInterface|null $held_at
+ * @property CarbonInterface|null $flagged_at
+ * @property CarbonInterface|null $returned_at
  * @property CarbonInterface|null $refunded_at
  * @property CarbonInterface|null $completed_at
  * @property string|null $cancellation_reason
@@ -115,6 +118,9 @@ class Order extends Model implements Auditable
         'delivered_at',
         'canceled_at',
         'payment_failed_at',
+        'held_at',
+        'flagged_at',
+        'returned_at',
         'refunded_at',
         'completed_at',
         'cancellation_reason',
@@ -264,6 +270,27 @@ class Order extends Model implements Auditable
     public function isCanceled(): bool
     {
         return $this->canceled_at !== null;
+    }
+
+    /**
+     * Whether the order is currently on hold.
+     *
+     * held_at is a toggle timestamp: set when the hold starts and cleared
+     * when the hold is released, so null always means "not on hold".
+     */
+    public function isOnHold(): bool
+    {
+        return $this->held_at !== null;
+    }
+
+    public function isFlaggedAsFraud(): bool
+    {
+        return $this->flagged_at !== null;
+    }
+
+    public function isReturned(): bool
+    {
+        return $this->returned_at !== null;
     }
 
     public function canBeCanceled(): bool
@@ -489,6 +516,9 @@ class Order extends Model implements Auditable
             'delivered_at' => 'immutable_datetime',
             'canceled_at' => 'immutable_datetime',
             'payment_failed_at' => 'immutable_datetime',
+            'held_at' => 'immutable_datetime',
+            'flagged_at' => 'immutable_datetime',
+            'returned_at' => 'immutable_datetime',
             'refunded_at' => 'immutable_datetime',
             'completed_at' => 'immutable_datetime',
         ];

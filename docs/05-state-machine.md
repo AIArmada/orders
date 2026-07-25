@@ -162,6 +162,68 @@ $order->status->transitionTo(Canceled::class, new OrderCanceled(
 ));
 ```
 
+### OrderHeld
+
+`Processing` → `OnHold`
+
+Records `held_at` as a toggle timestamp (set on hold, cleared by `OrderHoldReleased`).
+
+```php
+use AIArmada\Orders\Transitions\OrderHeld;
+
+$order->status->transitionTo(OnHold::class, new OrderHeld(
+    $order,
+    reason: 'Manual review',
+    heldBy: auth()->id(),
+));
+```
+
+### OrderHoldReleased
+
+`OnHold` → `Processing`
+
+Clears `held_at` to signal the order is no longer on hold.
+
+```php
+use AIArmada\Orders\Transitions\OrderHoldReleased;
+
+$order->status->transitionTo(Processing::class, new OrderHoldReleased(
+    $order,
+    reason: 'Approved after review',
+));
+```
+
+### OrderFlaggedAsFraud
+
+`Processing` → `Fraud`
+
+Records `flagged_at` once. Fraud is terminal — the timestamp is never cleared.
+
+```php
+use AIArmada\Orders\Transitions\OrderFlaggedAsFraud;
+
+$order->status->transitionTo(Fraud::class, new OrderFlaggedAsFraud(
+    $order,
+    reason: 'Chargeback pattern detected',
+    flaggedBy: auth()->id(),
+));
+```
+
+### OrderReturned
+
+`Delivered` → `Returned`
+
+Records `returned_at` as a historical fact (mirrors `order_items.returned_at` at the order level). A subsequent refund transitions `Returned` → `Refunded`.
+
+```php
+use AIArmada\Orders\Transitions\OrderReturned;
+
+$order->status->transitionTo(Returned::class, new OrderReturned(
+    $order,
+    reason: 'Damaged goods',
+));
+```
+
 ### RefundProcessed
 
 `Returned` → `Refunded`

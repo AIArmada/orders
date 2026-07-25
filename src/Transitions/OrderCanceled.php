@@ -35,6 +35,7 @@ final class OrderCanceled extends Transition
             $this->order->status->transitionTo(Canceled::class);
             $this->order->canceled_at = now();
             $this->order->cancellation_reason = $this->reason;
+            $this->order->held_at = null;
             $this->order->save();
 
             $this->order->orderNotes()->create([
