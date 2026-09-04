@@ -33,7 +33,7 @@ The `aiarmada/orders` package owns order records, order lifecycle transitions, p
 
 - **Models** — order, order items, addresses, payments, refunds, and notes
 - **Actions** — `CreateOrder`, `CreateOrderFromCart`, `CancelOrder`, `CompleteOrder`, `RegisterOrderPayment`, `RegisterOrderRefund`, `DetermineOrderDocumentType`, plus invoice/receipt doc generation
-- **Services** — `OrderService` (compatibility layer delegating to Actions)
+- **Services** — `OrderService` (public service API delegating to Actions)
 - **State machine** — order state classes and transitions
 - **Events** — lifecycle events including `OrderCreated`, `OrderPaid`, `OrderCanceled`, `OrderCancelInitiated`, `OrderProcessingStarted`
 - **Transitions** — state transition classes (`PaymentConfirmed`, `OrderCanceled`, `OrderCompleted`, etc.)
@@ -128,7 +128,7 @@ packages/orders/
     ├── Listeners/          # Inventory deduction, invoice creation
     ├── Models/             # Eloquent models
     ├── Policies/           # Authorization policies
-    ├── Services/           # OrderService (compatibility facade)
+    ├── Services/           # OrderService (public service API)
     ├── States/             # Order state classes
     ├── Support/            # OrderHandlerRegistrar and helpers
     └── Transitions/        # State transition classes

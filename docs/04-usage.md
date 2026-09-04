@@ -57,7 +57,7 @@ assert($retry->id === $order->id); // Same order
 
 - **Same intake (source + id) returns the existing order.** Items, addresses, and relationships are loaded on the returned model.
 - **Database-level unique constraint** on `(owner_type, owner_id, intake_source, intake_id)` prevents concurrent duplicates.
-- **Without intake identity,** each call creates a new order (backward compatible).
+- **Without intake identity,** each call creates a new order.
 - **Different source with same id** creates separate orders (e.g., `checkout` vs `api` with same session id).
 
 The Checkout `CreateOrderStep` uses `intakeSource: 'checkout'` with the session id as `intakeId`.
@@ -104,7 +104,7 @@ CompleteOrder::run($order);
 
 ## OrderService (Compatibility)
 
-The `OrderServiceInterface` is kept as a compatibility layer that delegates to Actions. Use it for existing code:
+The `OrderServiceInterface` is a public service contract that delegates to Actions:
 
 ```php
 use AIArmada\Orders\Contracts\OrderServiceInterface;
