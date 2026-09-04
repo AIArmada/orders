@@ -6,6 +6,7 @@ namespace AIArmada\Orders\Contracts;
 
 use AIArmada\Orders\Models\Order;
 use AIArmada\Orders\Models\OrderItem;
+use AIArmada\Orders\Models\OrderRefund;
 use Illuminate\Database\Eloquent\Model;
 
 /**
@@ -120,6 +121,29 @@ interface OrderServiceInterface
         string $reason,
         array $metadata = [],
     ): Order;
+
+    /**
+     * Create a pending refund before asking a payment provider to process it.
+     *
+     * @param  array<string, mixed>  $metadata
+     */
+    public function createPendingRefund(
+        Order $order,
+        int $amount,
+        string $transactionId,
+        string $reason,
+        array $metadata = [],
+    ): OrderRefund;
+
+    /**
+     * Complete a provider-confirmed pending refund.
+     */
+    public function completePendingRefund(OrderRefund $refund, ?string $transactionId = null): Order;
+
+    /**
+     * Mark a pending refund as failed and notify integrations.
+     */
+    public function failPendingRefund(OrderRefund $refund, string $reason): OrderRefund;
 
     /**
      * Recalculate order totals from items.

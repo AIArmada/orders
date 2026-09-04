@@ -4,11 +4,9 @@ declare(strict_types=1);
 
 namespace AIArmada\Orders\Actions;
 
+use AIArmada\Orders\Actions\Concerns\BuildsOrderPdf;
 use AIArmada\Orders\Models\Order;
-use Illuminate\Support\Facades\View;
 use Illuminate\Support\Str;
-use Spatie\Browsershot\Browsershot;
-use Spatie\LaravelPdf\Facades\Pdf;
 use Spatie\LaravelPdf\PdfBuilder;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -17,6 +15,8 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
  */
 final class GenerateInvoice
 {
+    use BuildsOrderPdf;
+
     /**
      * Generate and save invoice to a path.
      */
@@ -33,7 +33,12 @@ final class GenerateInvoice
     public function download(Order $order): PdfBuilder | StreamedResponse
     {
         if (! $this->hasPdfRuntime()) {
-            return $this->downloadHtmlFallback($order);
+            return $this->downloadOrderHtmlFallback(
+                order: $order,
+                view: 'orders::pdf.invoice',
+                filename: "invoice-{$order->order_number}.html",
+                data: $this->documentData($order),
+            );
         }
 
         return $this->buildPdf($order)->download();
@@ -44,34 +49,12 @@ final class GenerateInvoice
      */
     protected function buildPdf(Order $order): PdfBuilder
     {
-        $invoiceNumber = $this->generateInvoiceNumber($order);
-
-        $pdf = Pdf::view('orders::pdf.invoice', [
-            'order' => $order,
-            'items' => $order->items,
-            'billingAddress' => $order->billingAddress,
-            'shippingAddress' => $order->shippingAddress,
-            'payments' => $order->payments()->where('status', 'completed')->get(),
-            'invoiceNumber' => $invoiceNumber,
-            'invoiceDate' => now(),
-        ])
-            ->format('a4')
-            ->margins(15, 15, 15, 15)
-            ->name("invoice-{$order->order_number}.pdf");
-
-        // Configure node module path for puppeteer
-        $nodeModulePath = base_path('node_modules');
-        if (is_dir($nodeModulePath)) {
-            $pdf->withBrowsershot(function (Browsershot $browsershot) use ($nodeModulePath): void {
-                $browsershot
-                    ->setNodeModulePath($nodeModulePath)
-                    ->setEnvironmentOptions([
-                        'NODE_PATH' => $nodeModulePath,
-                    ]);
-            });
-        }
-
-        return $pdf;
+        return $this->buildOrderPdf(
+            order: $order,
+            view: 'orders::pdf.invoice',
+            filename: "invoice-{$order->order_number}.pdf",
+            data: $this->documentData($order),
+        );
     }
 
     /**
@@ -87,32 +70,19 @@ final class GenerateInvoice
         return $prefix . $separator . now()->format($dateFormat) . $separator . mb_strtoupper(Str::random($randomLength));
     }
 
-    private function hasPdfRuntime(): bool
+    /**
+     * @return array<string, mixed>
+     */
+    private function documentData(Order $order): array
     {
-        return is_file(base_path('node_modules/puppeteer/package.json'));
-    }
-
-    private function downloadHtmlFallback(Order $order): StreamedResponse
-    {
-        $filename = sprintf('invoice-%s.html', $order->order_number);
-
-        return response()->streamDownload(function () use ($order): void {
-            echo $this->renderInvoiceHtml($order);
-        }, $filename, [
-            'Content-Type' => 'text/html; charset=UTF-8',
-        ]);
-    }
-
-    private function renderInvoiceHtml(Order $order): string
-    {
-        return View::make('orders::pdf.invoice', [
-            'order' => $order,
-            'items' => $order->items,
-            'billingAddress' => $order->billingAddress,
-            'shippingAddress' => $order->shippingAddress,
-            'payments' => $order->payments()->where('status', 'completed')->get(),
+        return [
             'invoiceNumber' => $this->generateInvoiceNumber($order),
             'invoiceDate' => now(),
-        ])->render();
+            'documentTitle' => 'Invoice',
+            'documentNumberLabel' => 'Invoice No:',
+            'documentDateLabel' => 'Invoice Date:',
+            'documentFooterGreeting' => 'Thank you for your business!',
+            'documentFooterNote' => 'For questions about this invoice, please contact us.',
+        ];
     }
 }

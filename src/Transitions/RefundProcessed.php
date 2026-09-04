@@ -9,6 +9,8 @@ use AIArmada\Orders\Enums\RefundStatus;
 use AIArmada\Orders\Events\OrderRefunded;
 use AIArmada\Orders\Models\Order;
 use AIArmada\Orders\States\Refunded;
+use AIArmada\Orders\Support\RefundAllocationValidator;
+use InvalidArgumentException;
 use Spatie\ModelStates\Transition;
 
 /**
@@ -31,13 +33,27 @@ final class RefundProcessed extends Transition
     {
         $now = now();
 
+        if ($this->amount <= 0) {
+            throw new InvalidArgumentException('Refund amount must be greater than zero.');
+        }
+
+        RefundAllocationValidator::assertAmount($this->metadata, $this->amount);
+
+        $totalPaid = $this->order->getTotalPaid();
+        $refundCeiling = $totalPaid > 0
+            ? $totalPaid
+            : (int) $this->order->grand_total;
+        $remainingRefundable = $this->order->getRemainingRefundable();
+
+        if ($this->amount > $remainingRefundable) {
+            throw new InvalidArgumentException(sprintf(
+                'Refund amount cannot exceed the remaining refundable amount of %d.',
+                $remainingRefundable,
+            ));
+        }
+
         // Find the original payment
         $payment = $this->order->payments()->where('status', PaymentStatus::Completed)->first();
-
-        // Mark payment as refunded
-        if ($payment !== null) {
-            $payment->markAsRefunded();
-        }
 
         // Record refund
         $this->order->refunds()->create([
@@ -51,14 +67,25 @@ final class RefundProcessed extends Transition
             'refunded_at' => $now,
             'metadata' => $this->metadata,
         ]);
+        $this->order->unsetRelation('refunds');
 
-        // Update order state and refunded timestamp
-        $this->order->refunded_at = $now;
-        $this->order->status->transitionTo(Refunded::class);
+        $isFullyRefunded = $this->order->getTotalRefunded() >= $refundCeiling;
+
+        // Keep the payment and order open for additional partial refunds. The
+        // order becomes terminal only after the whole paid amount is returned.
+        if ($isFullyRefunded) {
+            if ($payment !== null) {
+                $payment->markAsRefunded();
+            }
+
+            $this->order->refunded_at = $now;
+            $this->order->status->transitionTo(Refunded::class);
+        }
+
         $this->order->save();
 
         // Dispatch event
-        event(new OrderRefunded($this->order, $this->amount, $this->reason));
+        event(new OrderRefunded($this->order, $this->amount, $this->reason, $this->metadata));
 
         return $this->order;
     }

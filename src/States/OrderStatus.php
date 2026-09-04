@@ -84,6 +84,7 @@ abstract class OrderStatus extends State
             ->allowTransition(Processing::class, Shipped::class)
             ->allowTransition(Processing::class, Completed::class)
             ->allowTransition(Processing::class, Canceled::class)
+            ->allowTransition(Processing::class, Refunded::class)
             // Hold management
             ->allowTransition(OnHold::class, Processing::class)
             ->allowTransition(OnHold::class, Canceled::class)
@@ -93,6 +94,9 @@ abstract class OrderStatus extends State
             // Completion
             ->allowTransition(Delivered::class, Completed::class)
             ->allowTransition(Delivered::class, Returned::class)
+            ->allowTransition(Delivered::class, Refunded::class)
+            ->allowTransition(Completed::class, Refunded::class)
+            ->allowTransition(Canceled::class, Refunded::class)
             // Returns
             ->allowTransition(Returned::class, Refunded::class);
     }

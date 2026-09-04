@@ -4,7 +4,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Invoice #{{ $invoiceNumber }}</title>
+    @php
+        $documentTitle = $documentTitle ?? 'Invoice';
+        $documentNumber = $documentNumber ?? ($invoiceNumber ?? '');
+        $documentNumberLabel = $documentNumberLabel ?? 'Invoice No:';
+        $documentDate = $documentDate ?? ($invoiceDate ?? now());
+        $documentDateLabel = $documentDateLabel ?? 'Invoice Date:';
+        $documentFooterGreeting = $documentFooterGreeting ?? 'Thank you for your business!';
+        $documentFooterNote = $documentFooterNote ?? 'For questions about this invoice, please contact us.';
+    @endphp
+    <title>{{ $documentTitle }} #{{ $documentNumber }}</title>
     <style>
         * {
             margin: 0;
@@ -228,19 +237,19 @@
                 <p>{{ config('orders.company.email', '') }}</p>
             </div>
             <div class="invoice-details">
-                <h2>Invoice</h2>
+                <h2>{{ $documentTitle }}</h2>
                 <table>
                     <tr>
-                        <td>Invoice No:</td>
-                        <td><strong>{{ $invoiceNumber }}</strong></td>
+                        <td>{{ $documentNumberLabel }}</td>
+                        <td><strong>{{ $documentNumber }}</strong></td>
                     </tr>
                     <tr>
                         <td>Order No:</td>
                         <td>{{ $order->order_number }}</td>
                     </tr>
                     <tr>
-                        <td>Invoice Date:</td>
-                        <td>{{ $invoiceDate->format('d M Y') }}</td>
+                        <td>{{ $documentDateLabel }}</td>
+                        <td>{{ $documentDate->format('d M Y') }}</td>
                     </tr>
                     <tr>
                         <td>Order Date:</td>
@@ -371,8 +380,8 @@
 
         <!-- Footer -->
         <div class="footer">
-            <p>Thank you for your business!</p>
-            <p>For questions about this invoice, please contact us.</p>
+            <p>{{ $documentFooterGreeting }}</p>
+            <p>{{ $documentFooterNote }}</p>
             <p>&copy; {{ date('Y') }} {{ config('app.name', 'AIArmada Commerce') }}. All rights reserved.</p>
         </div>
     </div>

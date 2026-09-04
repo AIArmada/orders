@@ -30,4 +30,9 @@ final class Processing extends OrderStatus
     {
         return true; // Can still cancel before shipping
     }
+
+    public function canRefund(): bool
+    {
+        return true; // Ticket and other digital admissions may be refunded before fulfillment.
+    }
 }

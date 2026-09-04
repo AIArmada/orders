@@ -8,13 +8,14 @@ use AIArmada\CommerceSupport\Support\OwnerContext;
 use AIArmada\Orders\Actions\CreateOrder;
 use AIArmada\Orders\Actions\CreateOrderFromCart;
 use AIArmada\Orders\Actions\RegisterOrderPayment;
+use AIArmada\Orders\Actions\RegisterOrderRefund;
 use AIArmada\Orders\Contracts\OrderServiceInterface;
 use AIArmada\Orders\Models\Order;
 use AIArmada\Orders\Models\OrderItem;
+use AIArmada\Orders\Models\OrderRefund;
 use AIArmada\Orders\Transitions\DeliveryConfirmed;
 use AIArmada\Orders\Transitions\OrderCanceled;
 use AIArmada\Orders\Transitions\OrderCompleted;
-use AIArmada\Orders\Transitions\RefundProcessed;
 use AIArmada\Orders\Transitions\ShipmentCreated;
 use Illuminate\Database\Eloquent\Model;
 use RuntimeException;
@@ -116,13 +117,27 @@ final class OrderService implements OrderServiceInterface
         string $reason,
         array $metadata = [],
     ): Order {
-        $this->assertOwnerBoundaryForMutation($order, __METHOD__);
+        return (new RegisterOrderRefund)->execute($order, $amount, $transactionId, $reason, $metadata);
+    }
 
-        if (! $order->canBeRefunded()) {
-            throw new RuntimeException("Order {$order->order_number} cannot be refunded in its current state.");
-        }
+    public function createPendingRefund(
+        Order $order,
+        int $amount,
+        string $transactionId,
+        string $reason,
+        array $metadata = [],
+    ): OrderRefund {
+        return (new RegisterOrderRefund)->createPending($order, $amount, $transactionId, $reason, $metadata);
+    }
 
-        return (new RefundProcessed($order, $amount, $transactionId, $reason, $metadata))->handle();
+    public function completePendingRefund(OrderRefund $refund, ?string $transactionId = null): Order
+    {
+        return (new RegisterOrderRefund)->completePending($refund, $transactionId);
+    }
+
+    public function failPendingRefund(OrderRefund $refund, string $reason): OrderRefund
+    {
+        return (new RegisterOrderRefund)->failPending($refund, $reason);
     }
 
     public function recalculateTotals(Order $order): Order

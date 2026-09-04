@@ -360,6 +360,22 @@ class Order extends Model implements Auditable
             ->sum('amount');
     }
 
+    public function getTotalPendingRefunded(): int
+    {
+        return $this->refunds()
+            ->where('status', RefundStatus::Pending)
+            ->sum('amount');
+    }
+
+    public function getRemainingRefundable(): int
+    {
+        $refundCeiling = $this->getTotalPaid() > 0
+            ? $this->getTotalPaid()
+            : (int) $this->grand_total;
+
+        return max(0, $refundCeiling - $this->getTotalRefunded() - $this->getTotalPendingRefunded());
+    }
+
     public function getBalanceDue(): int
     {
         return max(0, $this->grand_total - $this->getTotalPaid() + $this->getTotalRefunded());

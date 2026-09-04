@@ -6,11 +6,12 @@ namespace AIArmada\Orders\Events;
 
 use AIArmada\Orders\Events\Concerns\HasOrderOwnerTuple;
 use AIArmada\Orders\Models\Order;
+use AIArmada\Orders\Models\OrderRefund;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 
-final class OrderRefunded
+final class OrderRefundFailed
 {
     use Dispatchable;
     use HasOrderOwnerTuple;
@@ -19,7 +20,7 @@ final class OrderRefunded
 
     public function __construct(
         public Order $order,
-        public int $amount,
+        public OrderRefund $refund,
         public string $reason,
         /** @var array<string, mixed> */
         public array $metadata = [],
