@@ -7,6 +7,7 @@ namespace AIArmada\Orders\Transitions;
 use AIArmada\Orders\Events\OrderReturned as OrderReturnedEvent;
 use AIArmada\Orders\Models\Order;
 use AIArmada\Orders\States\Returned;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Spatie\ModelStates\Transition;
 
@@ -28,7 +29,7 @@ final class OrderReturned extends Transition
     {
         return DB::transaction(function (): Order {
             $this->order->status->transitionTo(Returned::class);
-            $this->order->returned_at = now();
+            $this->order->returned_at = CarbonImmutable::now();
             $this->order->save();
 
             $this->order->orderNotes()->create([

@@ -9,7 +9,7 @@ use AIArmada\CommerceSupport\Support\OwnerContext;
 use AIArmada\Orders\Models\Order;
 use AIArmada\Orders\States\PendingPayment;
 use AIArmada\Orders\States\Processing;
-use Illuminate\Support\Carbon;
+use Carbon\CarbonImmutable;
 use Spatie\Health\Checks\Result;
 
 /**
@@ -67,7 +67,7 @@ final class OrderProcessingCheck extends CommerceHealthCheck
     {
         $baseQuery = Order::query();
 
-        if ((bool) config('orders.owner.enabled', true)) {
+        if ((bool) config('orders.owner.enabled', false)) {
             $owner = OwnerContext::resolve();
 
             if ($owner === null && ! OwnerContext::isExplicitGlobal()) {
@@ -81,12 +81,12 @@ final class OrderProcessingCheck extends CommerceHealthCheck
 
         $stuckPending = (clone $baseQuery)
             ->whereState('status', PendingPayment::class)
-            ->where('created_at', '<', Carbon::now()->subHours($this->maxPendingHours))
+            ->where('created_at', '<', CarbonImmutable::now()->subHours($this->maxPendingHours))
             ->count();
 
         $stuckProcessing = (clone $baseQuery)
             ->whereState('status', Processing::class)
-            ->where('created_at', '<', Carbon::now()->subHours($this->maxProcessingHours))
+            ->where('created_at', '<', CarbonImmutable::now()->subHours($this->maxProcessingHours))
             ->count();
 
         $issues = [];
@@ -109,7 +109,7 @@ final class OrderProcessingCheck extends CommerceHealthCheck
         }
 
         $todayOrders = (clone $baseQuery)
-            ->whereDate('created_at', Carbon::today())
+            ->whereDate('created_at', CarbonImmutable::today())
             ->count();
 
         return $this->success('Order processing is healthy', [

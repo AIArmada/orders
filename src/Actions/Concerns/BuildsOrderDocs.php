@@ -12,6 +12,7 @@ use AIArmada\Docs\States\DocStatus;
 use AIArmada\Docs\States\Paid;
 use AIArmada\Orders\Models\Order;
 use AIArmada\Orders\Models\OrderItem;
+use Carbon\CarbonImmutable;
 
 trait BuildsOrderDocs
 {
@@ -31,7 +32,7 @@ trait BuildsOrderDocs
             docableType: $order->getMorphClass(),
             docableId: (string) $order->getKey(),
             status: DocStatus::fromString(Paid::class),
-            issueDate: $order->paid_at ?? now(),
+            issueDate: $order->paid_at ?? CarbonImmutable::now(),
             items: $this->buildItems($order),
             subtotalMinor: $order->subtotal,
             totalMinor: $order->grand_total,

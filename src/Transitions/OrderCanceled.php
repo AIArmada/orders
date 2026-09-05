@@ -10,6 +10,7 @@ use AIArmada\Orders\Events\OrderCanceled as OrderCanceledEvent;
 use AIArmada\Orders\Events\OrderCancelInitiated;
 use AIArmada\Orders\Models\Order;
 use AIArmada\Orders\States\Canceled;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Spatie\ModelStates\Transition;
 
@@ -33,7 +34,7 @@ final class OrderCanceled extends Transition
     {
         return DB::transaction(function (): Order {
             $this->order->status->transitionTo(Canceled::class);
-            $this->order->canceled_at = now();
+            $this->order->canceled_at = CarbonImmutable::now();
             $this->order->cancellation_reason = $this->reason;
             $this->order->held_at = null;
             $this->order->save();

@@ -11,6 +11,7 @@ use AIArmada\Orders\Events\OrderProcessingStarted;
 use AIArmada\Orders\Models\Order;
 use AIArmada\Orders\Models\OrderPayment;
 use AIArmada\Orders\States\Processing;
+use Carbon\CarbonImmutable;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
@@ -60,7 +61,7 @@ final class PaymentConfirmed extends Transition
                     'amount' => $this->amount,
                     'currency' => $this->order->currency,
                     'status' => PaymentStatus::Completed,
-                    'paid_at' => now(),
+                    'paid_at' => CarbonImmutable::now(),
                     'metadata' => $this->metadata,
                 ]);
             } catch (QueryException $e) {
@@ -89,7 +90,7 @@ final class PaymentConfirmed extends Transition
 
             // Update order state and paid timestamp
             $this->order->status->transitionTo(Processing::class);
-            $this->order->paid_at = now();
+            $this->order->paid_at = CarbonImmutable::now();
             $this->order->save();
 
             $this->syncOriginalOrder($originalOrder);

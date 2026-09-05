@@ -46,8 +46,6 @@ final class OrderNote extends Model
 
     protected $fillable = [
         'order_id',
-        'owner_id',
-        'owner_type',
         'user_id',
         'content',
         'visibility',
@@ -136,7 +134,7 @@ final class OrderNote extends Model
     protected static function booted(): void
     {
         static::creating(function (OrderNote $note): void {
-            if (! (bool) config('orders.owner.enabled', true)) {
+            if (! (bool) config('orders.owner.enabled', false)) {
                 return;
             }
 

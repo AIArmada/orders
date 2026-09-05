@@ -8,6 +8,7 @@ use AIArmada\Orders\Enums\OrderItemStatus;
 use AIArmada\Orders\Events\OrderShipped;
 use AIArmada\Orders\Models\Order;
 use AIArmada\Orders\States\Shipped;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Arr;
 use Spatie\ModelStates\Transition;
 
@@ -30,7 +31,7 @@ final class ShipmentCreated extends Transition
 
     public function handle(): Order
     {
-        $shippedAt = now();
+        $shippedAt = CarbonImmutable::now();
 
         $existingMetadata = $this->order->metadata ?? [];
         if (! is_array($existingMetadata)) {

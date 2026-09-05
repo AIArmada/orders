@@ -14,14 +14,29 @@ return new class extends Migration
         $ownerTypeCol = 'owner_type';
         $ownerIdCol = 'owner_id';
 
-        Schema::table($tableName, function (Blueprint $table) use ($tableName, $ownerTypeCol, $ownerIdCol): void {
-            $table->string('intake_source')->nullable()->after('order_number');
-            $table->string('intake_id')->nullable()->after('intake_source');
+        if (! Schema::hasTable($tableName)) {
+            return;
+        }
 
-            $table->unique(
-                [$ownerTypeCol, $ownerIdCol, 'intake_source', 'intake_id'],
-                $tableName . '_intake_unique',
-            );
-        });
+        if (! Schema::hasColumn($tableName, 'intake_source')) {
+            Schema::table($tableName, function (Blueprint $table): void {
+                $table->string('intake_source')->nullable()->after('order_number');
+            });
+        }
+
+        if (! Schema::hasColumn($tableName, 'intake_id')) {
+            Schema::table($tableName, function (Blueprint $table): void {
+                $table->string('intake_id')->nullable()->after('intake_source');
+            });
+        }
+
+        if (! Schema::hasIndex($tableName, $tableName . '_intake_unique')) {
+            Schema::table($tableName, function (Blueprint $table) use ($tableName, $ownerTypeCol, $ownerIdCol): void {
+                $table->unique(
+                    [$ownerTypeCol, $ownerIdCol, 'intake_source', 'intake_id'],
+                    $tableName . '_intake_unique',
+                );
+            });
+        }
     }
 };

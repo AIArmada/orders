@@ -6,6 +6,7 @@ namespace AIArmada\Orders\Actions;
 
 use AIArmada\Orders\Actions\Concerns\BuildsOrderPdf;
 use AIArmada\Orders\Models\Order;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Str;
 use Spatie\LaravelPdf\PdfBuilder;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -67,7 +68,7 @@ final class GenerateInvoice
         $dateFormat = config('orders.invoice.date_format', 'Ymd');
         $randomLength = (int) config('orders.invoice.random_length', 6);
 
-        return $prefix . $separator . now()->format($dateFormat) . $separator . mb_strtoupper(Str::random($randomLength));
+        return $prefix . $separator . CarbonImmutable::now()->format($dateFormat) . $separator . mb_strtoupper(Str::random($randomLength));
     }
 
     /**
@@ -77,7 +78,7 @@ final class GenerateInvoice
     {
         return [
             'invoiceNumber' => $this->generateInvoiceNumber($order),
-            'invoiceDate' => now(),
+            'invoiceDate' => CarbonImmutable::now(),
             'documentTitle' => 'Invoice',
             'documentNumberLabel' => 'Invoice No:',
             'documentDateLabel' => 'Invoice Date:',

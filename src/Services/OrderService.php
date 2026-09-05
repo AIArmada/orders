@@ -130,6 +130,11 @@ final class OrderService implements OrderServiceInterface
         return (new RegisterOrderRefund)->createPending($order, $amount, $transactionId, $reason, $metadata);
     }
 
+    public function claimPendingRefundSubmission(OrderRefund $refund): bool
+    {
+        return (new RegisterOrderRefund)->claimPendingSubmission($refund);
+    }
+
     public function completePendingRefund(OrderRefund $refund, ?string $transactionId = null): Order
     {
         return (new RegisterOrderRefund)->completePending($refund, $transactionId);
@@ -151,7 +156,7 @@ final class OrderService implements OrderServiceInterface
 
     private function assertOwnerBoundaryForMutation(Order $order, string $operation): void
     {
-        if (! (bool) config('orders.owner.enabled', true)) {
+        if (! (bool) config('orders.owner.enabled', false)) {
             return;
         }
 

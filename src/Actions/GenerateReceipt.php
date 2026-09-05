@@ -6,6 +6,7 @@ namespace AIArmada\Orders\Actions;
 
 use AIArmada\Orders\Actions\Concerns\BuildsOrderPdf;
 use AIArmada\Orders\Models\Order;
+use Carbon\CarbonImmutable;
 use Spatie\LaravelPdf\PdfBuilder;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -61,7 +62,7 @@ final class GenerateReceipt
      */
     private function documentData(Order $order): array
     {
-        $receiptDate = $order->paid_at ?? $order->created_at ?? now();
+        $receiptDate = $order->paid_at ?? $order->created_at ?? CarbonImmutable::now();
 
         return [
             'documentTitle' => 'Receipt',

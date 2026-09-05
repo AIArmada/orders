@@ -10,7 +10,7 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create(config('orders.database.tables.order_notes', 'order_notes'), function (Blueprint $table): void {
+        commerce_schema_create_if_missing(config('orders.database.tables.order_notes', 'order_notes'), function (Blueprint $table): void {
             $table->uuid('id')->primary();
             $table->foreignUuid('order_id');
 

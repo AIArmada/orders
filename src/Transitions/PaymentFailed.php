@@ -8,6 +8,7 @@ use AIArmada\Orders\Enums\PaymentStatus;
 use AIArmada\Orders\Events\OrderPaymentFailed;
 use AIArmada\Orders\Models\Order;
 use AIArmada\Orders\States\PaymentFailed as PaymentFailedState;
+use Carbon\CarbonImmutable;
 use Spatie\ModelStates\Transition;
 
 /**
@@ -24,7 +25,7 @@ final class PaymentFailed extends Transition
 
     public function handle(): Order
     {
-        $now = now();
+        $now = CarbonImmutable::now();
 
         // Mark the payment record as failed
         $payment = $this->order->payments()->where('status', PaymentStatus::Pending)->first();

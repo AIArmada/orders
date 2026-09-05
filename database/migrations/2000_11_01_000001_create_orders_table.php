@@ -12,7 +12,7 @@ return new class extends Migration
     {
         $jsonType = commerce_json_column_type('orders', 'jsonb');
 
-        Schema::create(config('orders.database.tables.orders', 'orders'), function (Blueprint $table) use ($jsonType): void {
+        commerce_schema_create_if_missing(config('orders.database.tables.orders', 'orders'), function (Blueprint $table) use ($jsonType): void {
             $table->uuid('id')->primary();
             $table->string('order_number')->unique();
             $table->string('status', 50)->default('created')->index();

@@ -7,6 +7,7 @@ namespace AIArmada\Orders\Transitions;
 use AIArmada\Orders\Events\OrderCompleted as OrderCompletedEvent;
 use AIArmada\Orders\Models\Order;
 use AIArmada\Orders\States\Completed;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Arr;
 use Spatie\ModelStates\Transition;
 
@@ -26,7 +27,7 @@ final class OrderCompleted extends Transition
 
     public function handle(): Order
     {
-        $completedAt = now();
+        $completedAt = CarbonImmutable::now();
 
         $existingMetadata = $this->order->metadata ?? [];
         if (! is_array($existingMetadata)) {

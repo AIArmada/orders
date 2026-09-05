@@ -7,6 +7,7 @@ namespace AIArmada\Orders\Transitions;
 use AIArmada\Orders\Events\OrderFlaggedAsFraud as OrderFlaggedAsFraudEvent;
 use AIArmada\Orders\Models\Order;
 use AIArmada\Orders\States\Fraud;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Spatie\ModelStates\Transition;
 
@@ -27,7 +28,7 @@ final class OrderFlaggedAsFraud extends Transition
     {
         return DB::transaction(function (): Order {
             $this->order->status->transitionTo(Fraud::class);
-            $this->order->flagged_at = now();
+            $this->order->flagged_at = CarbonImmutable::now();
             $this->order->save();
 
             $this->order->orderNotes()->create([

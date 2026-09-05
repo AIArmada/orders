@@ -59,8 +59,6 @@ final class OrderAddress extends Model implements Auditable
 
     protected $fillable = [
         'order_id',
-        'owner_id',
-        'owner_type',
         'type',
         'first_name',
         'last_name',
@@ -198,7 +196,7 @@ final class OrderAddress extends Model implements Auditable
     protected static function booted(): void
     {
         static::creating(function (OrderAddress $address): void {
-            if (! (bool) config('orders.owner.enabled', true)) {
+            if (! (bool) config('orders.owner.enabled', false)) {
                 return;
             }
 

@@ -12,6 +12,7 @@ use AIArmada\CommerceSupport\Traits\FormatsMoney;
 use AIArmada\CommerceSupport\Traits\HasOwner;
 use AIArmada\CommerceSupport\Traits\HasOwnerScopeConfig;
 use AIArmada\Orders\Enums\RefundStatus;
+use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
@@ -36,6 +37,7 @@ use OwenIt\Auditing\Contracts\Auditable;
  * @property array|null $metadata
  * @property CarbonInterface|null $refunded_at
  * @property CarbonInterface|null $failed_at
+ * @property CarbonInterface|null $provider_submission_started_at
  * @property CarbonInterface $created_at
  * @property CarbonInterface $updated_at
  * @property-read Order $order
@@ -60,8 +62,6 @@ final class OrderRefund extends Model implements Auditable
 
     protected $fillable = [
         'order_id',
-        'owner_id',
-        'owner_type',
         'payment_id',
         'gateway',
         'transaction_id',
@@ -73,6 +73,7 @@ final class OrderRefund extends Model implements Auditable
         'metadata',
         'refunded_at',
         'failed_at',
+        'provider_submission_started_at',
     ];
 
     /**
@@ -139,10 +140,15 @@ final class OrderRefund extends Model implements Auditable
         return $this->status === RefundStatus::Failed;
     }
 
+    public function hasProviderSubmissionStarted(): bool
+    {
+        return $this->provider_submission_started_at !== null;
+    }
+
     public function markAsCompleted(?string $transactionId = null): self
     {
         $this->status = RefundStatus::Completed;
-        $this->refunded_at = now();
+        $this->refunded_at = CarbonImmutable::now();
 
         if ($transactionId !== null) {
             $this->transaction_id = $transactionId;
@@ -156,7 +162,7 @@ final class OrderRefund extends Model implements Auditable
     public function markAsFailed(string $reason): self
     {
         $this->status = RefundStatus::Failed;
-        $this->failed_at = now();
+        $this->failed_at = CarbonImmutable::now();
         $this->notes = $reason;
         $this->save();
 
@@ -180,13 +186,14 @@ final class OrderRefund extends Model implements Auditable
             'metadata' => 'array',
             'refunded_at' => 'immutable_datetime',
             'failed_at' => 'immutable_datetime',
+            'provider_submission_started_at' => 'immutable_datetime',
         ];
     }
 
     protected static function booted(): void
     {
         static::creating(function (OrderRefund $refund): void {
-            if (! (bool) config('orders.owner.enabled', true)) {
+            if (! (bool) config('orders.owner.enabled', false)) {
                 return;
             }
 

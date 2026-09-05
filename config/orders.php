@@ -5,6 +5,7 @@ declare(strict_types=1);
 return [
     /* Database */
     'database' => [
+        'json_column_type' => env('ORDERS_JSON_COLUMN_TYPE', 'jsonb'),
         'tables' => [
             'orders' => 'orders',
             'order_items' => 'order_items',

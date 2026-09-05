@@ -136,6 +136,14 @@ interface OrderServiceInterface
     ): OrderRefund;
 
     /**
+     * Atomically claim a pending refund before submitting it to a provider.
+     *
+     * Returns false when another worker already claimed the refund or when
+     * the refund is no longer pending.
+     */
+    public function claimPendingRefundSubmission(OrderRefund $refund): bool;
+
+    /**
      * Complete a provider-confirmed pending refund.
      */
     public function completePendingRefund(OrderRefund $refund, ?string $transactionId = null): Order;

@@ -120,10 +120,20 @@ final class CreateOrder
      */
     private function validateIntakeMatch(Order $existing, array $orderData): void
     {
-        if (
-            (string) $existing->customer_id !== (string) ($orderData['customer_id'] ?? '')
-            || (string) $existing->customer_type !== (string) ($orderData['customer_type'] ?? '')
-        ) {
+        $matches = [
+            (string) $existing->customer_id === (string) ($orderData['customer_id'] ?? ''),
+            (string) $existing->customer_type === (string) ($orderData['customer_type'] ?? ''),
+            $existing->subtotal === (int) ($orderData['subtotal'] ?? 0),
+            $existing->discount_total === (int) ($orderData['discount_total'] ?? 0),
+            $existing->shipping_total === (int) ($orderData['shipping_total'] ?? 0),
+            $existing->tax_total === (int) ($orderData['tax_total'] ?? 0),
+            $existing->grand_total === (int) ($orderData['grand_total'] ?? 0),
+            mb_strtoupper((string) $existing->currency) === mb_strtoupper(
+                (string) ($orderData['currency'] ?? config('orders.currency.default', 'MYR')),
+            ),
+        ];
+
+        if (in_array(false, $matches, true)) {
             throw OrderIntakeConflictException::duplicate(
                 (string) $existing->intake_source,
                 (string) $existing->intake_id,
@@ -213,7 +223,7 @@ final class CreateOrder
 
     private function assertOwnerBoundaryForCreation(): void
     {
-        if (! (bool) config('orders.owner.enabled', true)) {
+        if (! (bool) config('orders.owner.enabled', false)) {
             return;
         }
 

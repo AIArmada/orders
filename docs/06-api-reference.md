@@ -210,6 +210,7 @@ Refund records.
 | `status` | `RefundStatus` | Enum status |
 | `refunded_at` | `Carbon\|null` | Refund timestamp |
 | `failed_at` | `Carbon\|null` | Refund failure timestamp |
+| `provider_submission_started_at` | `Carbon\|null` | Timestamp at which an external provider submission was claimed |
 | `metadata` | `array\|null` | Additional data |
 
 ### OrderNote

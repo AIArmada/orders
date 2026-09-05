@@ -11,6 +11,7 @@ use AIArmada\Orders\Models\Order;
 use AIArmada\Orders\Models\OrderRefund;
 use AIArmada\Orders\States\Refunded;
 use AIArmada\Orders\Support\RefundAllocationValidator;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 use RuntimeException;
@@ -83,7 +84,7 @@ final class RefundCompleted extends Transition
                     $order->status->transitionTo(Refunded::class);
                 }
 
-                $order->refunded_at ??= now();
+                $order->refunded_at ??= CarbonImmutable::now();
                 $order->save();
             }
 

@@ -14,6 +14,7 @@ use AIArmada\Orders\Database\Factories\OrderFactory;
 use AIArmada\Orders\Enums\PaymentStatus;
 use AIArmada\Orders\Enums\RefundStatus;
 use AIArmada\Orders\States\OrderStatus;
+use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
@@ -26,7 +27,6 @@ use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Notifications\Notification;
 use Illuminate\Support\Str;
-use InvalidArgumentException;
 use OwenIt\Auditing\Contracts\Auditable;
 use Spatie\ModelStates\HasStates;
 
@@ -102,8 +102,6 @@ class Order extends Model implements Auditable
         'status',
         'customer_id',
         'customer_type',
-        'owner_id',
-        'owner_type',
         'subtotal',
         'discount_total',
         'shipping_total',
@@ -153,7 +151,7 @@ class Order extends Model implements Auditable
         $parts = [$prefix];
 
         if ($useDate) {
-            $parts[] = now()->format($dateFormat);
+            $parts[] = CarbonImmutable::now()->format($dateFormat);
         }
 
         $parts[] = mb_strtoupper(Str::random($length));
@@ -465,43 +463,6 @@ class Order extends Model implements Auditable
                 $order->order_number = static::generateOrderNumber();
             }
 
-            if (! (bool) config('orders.owner.enabled', true)) {
-                return;
-            }
-
-            $hasOwnerType = $order->owner_type !== null;
-            $hasOwnerId = $order->owner_id !== null;
-
-            if ($hasOwnerType xor $hasOwnerId) {
-                throw new InvalidArgumentException('owner_type and owner_id must both be set or both be null.');
-            }
-
-            $ownerFromContext = OwnerContext::resolve();
-
-            if ($ownerFromContext !== null && $hasOwnerType && $hasOwnerId) {
-                if (
-                    $order->owner_type !== $ownerFromContext->getMorphClass()
-                    || (string) $order->owner_id !== (string) $ownerFromContext->getKey()
-                ) {
-                    throw new InvalidArgumentException('Explicit owner does not match the current owner context.');
-                }
-
-                return;
-            }
-
-            if ($hasOwnerType && $hasOwnerId) {
-                return;
-            }
-
-            if (! (bool) config('orders.owner.auto_assign_on_create', true)) {
-                return;
-            }
-
-            if ($ownerFromContext === null) {
-                return;
-            }
-
-            $order->assignOwner($ownerFromContext);
         });
 
         static::deleting(function (Order $order): void {

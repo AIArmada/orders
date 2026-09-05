@@ -7,6 +7,7 @@ namespace AIArmada\Orders\Transitions;
 use AIArmada\Orders\Events\OrderHeld as OrderHeldEvent;
 use AIArmada\Orders\Models\Order;
 use AIArmada\Orders\States\OnHold;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Spatie\ModelStates\Transition;
 
@@ -28,7 +29,7 @@ final class OrderHeld extends Transition
     {
         return DB::transaction(function (): Order {
             $this->order->status->transitionTo(OnHold::class);
-            $this->order->held_at = now();
+            $this->order->held_at = CarbonImmutable::now();
             $this->order->save();
 
             $this->order->orderNotes()->create([

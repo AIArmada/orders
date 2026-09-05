@@ -10,6 +10,7 @@ use AIArmada\Orders\Events\OrderRefunded;
 use AIArmada\Orders\Models\Order;
 use AIArmada\Orders\States\Refunded;
 use AIArmada\Orders\Support\RefundAllocationValidator;
+use Carbon\CarbonImmutable;
 use InvalidArgumentException;
 use Spatie\ModelStates\Transition;
 
@@ -31,7 +32,7 @@ final class RefundProcessed extends Transition
 
     public function handle(): Order
     {
-        $now = now();
+        $now = CarbonImmutable::now();
 
         if ($this->amount <= 0) {
             throw new InvalidArgumentException('Refund amount must be greater than zero.');

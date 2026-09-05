@@ -12,7 +12,7 @@ trait AssertsOrderOwnerBoundary
 {
     private function assertOwnerBoundaryForMutation(Order $order, string $operation): void
     {
-        if (! (bool) config('orders.owner.enabled', true)) {
+        if (! (bool) config('orders.owner.enabled', false)) {
             return;
         }
 

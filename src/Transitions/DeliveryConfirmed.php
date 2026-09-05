@@ -8,6 +8,7 @@ use AIArmada\Orders\Enums\OrderItemStatus;
 use AIArmada\Orders\Events\OrderDelivered;
 use AIArmada\Orders\Models\Order;
 use AIArmada\Orders\States\Delivered;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Arr;
 use Spatie\ModelStates\Transition;
 
@@ -26,7 +27,7 @@ final class DeliveryConfirmed extends Transition
 
     public function handle(): Order
     {
-        $deliveredAt = now();
+        $deliveredAt = CarbonImmutable::now();
 
         $existingMetadata = $this->order->metadata ?? [];
         if (! is_array($existingMetadata)) {

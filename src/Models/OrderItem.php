@@ -67,8 +67,6 @@ class OrderItem extends Model implements Auditable
 
     protected $fillable = [
         'order_id',
-        'owner_id',
-        'owner_type',
         'purchasable_id',
         'purchasable_type',
         'name',
@@ -204,7 +202,7 @@ class OrderItem extends Model implements Auditable
     protected static function booted(): void
     {
         static::creating(function (OrderItem $item): void {
-            if (! (bool) config('orders.owner.enabled', true)) {
+            if (! (bool) config('orders.owner.enabled', false)) {
                 return;
             }
 
