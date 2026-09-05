@@ -96,6 +96,8 @@ class Order extends Model implements Auditable
     protected $keyType = 'string';
 
     protected $fillable = [
+        'owner_type',
+        'owner_id',
         'order_number',
         'intake_source',
         'intake_id',
