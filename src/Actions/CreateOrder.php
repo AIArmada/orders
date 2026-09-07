@@ -216,6 +216,7 @@ final class CreateOrder
     private function findExistingIntake(string $intakeSource, string $intakeId): ?Order
     {
         return Order::query()
+            ->forOwner(includeGlobal: (bool) config('orders.owner.include_global', false))
             ->where('intake_source', $intakeSource)
             ->where('intake_id', $intakeId)
             ->first();
