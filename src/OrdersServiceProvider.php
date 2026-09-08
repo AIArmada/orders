@@ -45,6 +45,16 @@ final class OrdersServiceProvider extends PackageServiceProvider
     {
         Gate::policy(Models\Order::class, Policies\OrderPolicy::class);
         Gate::policy(Models\OrderItem::class, Policies\OrderItemPolicy::class);
+        Gate::policy(Models\OrderAddress::class, Policies\OrderAddressPolicy::class);
+        Gate::policy(Models\OrderPayment::class, Policies\OrderPaymentPolicy::class);
+        Gate::policy(Models\OrderRefund::class, Policies\OrderRefundPolicy::class);
+        Gate::policy(Models\OrderNote::class, Policies\OrderNotePolicy::class);
+
+        if (class_exists(\Spatie\Health\Facades\Health::class)) {
+            \Spatie\Health\Facades\Health::checks([
+                Health\OrderProcessingCheck::new(),
+            ]);
+        }
     }
 
     protected function registerEventListeners(): void

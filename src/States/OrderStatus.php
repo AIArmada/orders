@@ -153,26 +153,6 @@ abstract class OrderStatus extends State
      */
     private static function resolveDefaultStateClass(): string
     {
-        $default = config('orders.status.default', Processing::class);
-
-        /** @var array<int, string> $allowed */
-        $allowed = array_values(array_filter((array) config('orders.status.allowed', []), 'is_string'));
-
-        if (is_string($default) && class_exists($default) && is_subclass_of($default, self::class)) {
-            return $default;
-        }
-
-        $defaultValue = is_string($default) ? $default : '';
-
-        if ($defaultValue !== '' && $allowed !== [] && ! in_array($defaultValue, $allowed, true)) {
-            return Processing::class;
-        }
-
-        return match ($defaultValue) {
-            'created' => Created::class,
-            'pending_payment' => PendingPayment::class,
-            'processing' => Processing::class,
-            default => Processing::class,
-        };
+        return Processing::class;
     }
 }

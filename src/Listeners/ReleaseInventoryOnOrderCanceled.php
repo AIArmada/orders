@@ -6,8 +6,9 @@ namespace AIArmada\Orders\Listeners;
 
 use AIArmada\Orders\Events\InventoryReleaseRequired;
 use AIArmada\Orders\Events\OrderCancelInitiated;
+use Illuminate\Contracts\Queue\ShouldQueue;
 
-final class ReleaseInventoryOnOrderCanceled
+final class ReleaseInventoryOnOrderCanceled implements ShouldQueue
 {
     public function handle(OrderCancelInitiated $event): void
     {

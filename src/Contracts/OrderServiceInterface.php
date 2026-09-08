@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace AIArmada\Orders\Contracts;
 
+use AIArmada\Cart\Cart;
+use AIArmada\Cart\Contracts\CartManagerInterface;
 use AIArmada\Orders\Models\Order;
 use AIArmada\Orders\Models\OrderItem;
 use AIArmada\Orders\Models\OrderRefund;
@@ -34,20 +36,22 @@ interface OrderServiceInterface
     ): Order;
 
     /**
-     * Create order from a cart object.
+     * Create order from a cart or cart manager.
      *
      * @param  array<string, mixed>|null  $billingAddress
      * @param  array<string, mixed>|null  $shippingAddress
      * @param  string|null  $intakeSource  Deduplication identity source
      * @param  string|null  $intakeId  Deduplication identity
+     * @param  string|null  $sessionId  Checkout/session identifier for order metadata
      */
     public function createFromCart(
-        object $cart,
+        Cart | CartManagerInterface $cart,
         Model $customer,
         ?array $billingAddress = null,
         ?array $shippingAddress = null,
         ?string $intakeSource = null,
         ?string $intakeId = null,
+        ?string $sessionId = null,
     ): Order;
 
     /**

@@ -26,7 +26,9 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Notifications\Notification;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use LogicException;
 use OwenIt\Auditing\Contracts\Auditable;
 use Spatie\ModelStates\HasStates;
 
@@ -88,6 +90,8 @@ class Order extends Model implements Auditable
     use HasUuids;
     use LogsCommerceActivity;
     use Notifiable;
+
+    private bool $allowUnsafeDelete = false;
 
     protected static string $ownerScopeConfigKey = 'orders.owner';
 
@@ -313,6 +317,24 @@ class Order extends Model implements Auditable
         return $this->status->isFinal();
     }
 
+    /**
+     * Delete an order and its owned records atomically.
+     *
+     * Paid or final orders must be cancelled/refunded instead of deleted. A
+     * force delete is reserved for explicit retention or administrative work.
+     */
+    public function delete(bool $force = false): ?bool
+    {
+        $previous = $this->allowUnsafeDelete;
+        $this->allowUnsafeDelete = $force;
+
+        try {
+            return DB::transaction(fn (): ?bool => parent::delete());
+        } finally {
+            $this->allowUnsafeDelete = $previous;
+        }
+    }
+
     // ─────────────────────────────────────────────────────────────
     // MONEY ACCESSORS
     // ─────────────────────────────────────────────────────────────
@@ -468,6 +490,10 @@ class Order extends Model implements Auditable
         });
 
         static::deleting(function (Order $order): void {
+            if (! $order->allowUnsafeDelete && ($order->isPaid() || $order->isFinal())) {
+                throw new LogicException('Paid or final orders must be cancelled or refunded instead of deleted. Pass force=true only for an explicit administrative retention override.');
+            }
+
             $order->items()->delete();
             $order->addresses()->delete();
             $order->payments()->delete();

@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace AIArmada\Orders\Services;
 
-use AIArmada\CommerceSupport\Support\OwnerContext;
+use AIArmada\Cart\Cart;
+use AIArmada\Cart\Contracts\CartManagerInterface;
+use AIArmada\Orders\Actions\Concerns\AssertsOrderOwnerBoundary;
 use AIArmada\Orders\Actions\CreateOrder;
 use AIArmada\Orders\Actions\CreateOrderFromCart;
 use AIArmada\Orders\Actions\RegisterOrderPayment;
@@ -18,7 +20,6 @@ use AIArmada\Orders\Transitions\OrderCanceled;
 use AIArmada\Orders\Transitions\OrderCompleted;
 use AIArmada\Orders\Transitions\ShipmentCreated;
 use Illuminate\Database\Eloquent\Model;
-use RuntimeException;
 
 /**
  * Compatibility facade for order lifecycle operations.
@@ -28,6 +29,15 @@ use RuntimeException;
  */
 final class OrderService implements OrderServiceInterface
 {
+    use AssertsOrderOwnerBoundary;
+
+    public function __construct(
+        private readonly CreateOrder $createOrder,
+        private readonly CreateOrderFromCart $createOrderFromCart,
+        private readonly RegisterOrderPayment $registerOrderPayment,
+        private readonly RegisterOrderRefund $registerOrderRefund,
+    ) {}
+
     public function createOrder(
         array $orderData,
         array $items,
@@ -36,35 +46,41 @@ final class OrderService implements OrderServiceInterface
         ?string $intakeSource = null,
         ?string $intakeId = null,
     ): Order {
-        return (new CreateOrder)->execute($orderData, $items, $billingAddress, $shippingAddress, $intakeSource, $intakeId);
+        return $this->createOrder->execute($orderData, $items, $billingAddress, $shippingAddress, $intakeSource, $intakeId);
     }
 
     public function createFromCart(
-        object $cart,
+        Cart | CartManagerInterface $cart,
         Model $customer,
         ?array $billingAddress = null,
         ?array $shippingAddress = null,
         ?string $intakeSource = null,
         ?string $intakeId = null,
+        ?string $sessionId = null,
     ): Order {
-        return (new CreateOrderFromCart(new CreateOrder))->execute(
+        return $this->createOrderFromCart->execute(
             $cart,
             $customer,
             $billingAddress,
             $shippingAddress,
             $intakeSource,
             $intakeId,
+            $sessionId,
         );
     }
 
     public function addItem(Order $order, array $itemData): OrderItem
     {
-        return (new CreateOrder)->addItem($order, $itemData);
+        $this->assertOwnerBoundaryForMutation($order, __METHOD__);
+
+        return $this->createOrder->addItem($order, $itemData);
     }
 
     public function addAddress(Order $order, array $addressData, string $type): void
     {
-        (new CreateOrder)->addAddress($order, $addressData, $type);
+        $this->assertOwnerBoundaryForMutation($order, __METHOD__);
+
+        $this->createOrder->addAddress($order, $addressData, $type);
     }
 
     public function cancel(Order $order, string $reason, ?string $canceledBy = null): Order
@@ -81,7 +97,9 @@ final class OrderService implements OrderServiceInterface
         int $amount,
         array $metadata = [],
     ): Order {
-        return (new RegisterOrderPayment)->execute($order, $transactionId, $gateway, $amount, $metadata);
+        $this->assertOwnerBoundaryForMutation($order, __METHOD__);
+
+        return $this->registerOrderPayment->execute($order, $transactionId, $gateway, $amount, $metadata);
     }
 
     public function ship(
@@ -117,7 +135,9 @@ final class OrderService implements OrderServiceInterface
         string $reason,
         array $metadata = [],
     ): Order {
-        return (new RegisterOrderRefund)->execute($order, $amount, $transactionId, $reason, $metadata);
+        $this->assertOwnerBoundaryForMutation($order, __METHOD__);
+
+        return $this->registerOrderRefund->execute($order, $amount, $transactionId, $reason, $metadata);
     }
 
     public function createPendingRefund(
@@ -127,22 +147,24 @@ final class OrderService implements OrderServiceInterface
         string $reason,
         array $metadata = [],
     ): OrderRefund {
-        return (new RegisterOrderRefund)->createPending($order, $amount, $transactionId, $reason, $metadata);
+        $this->assertOwnerBoundaryForMutation($order, __METHOD__);
+
+        return $this->registerOrderRefund->createPending($order, $amount, $transactionId, $reason, $metadata);
     }
 
     public function claimPendingRefundSubmission(OrderRefund $refund): bool
     {
-        return (new RegisterOrderRefund)->claimPendingSubmission($refund);
+        return $this->registerOrderRefund->claimPendingSubmission($refund);
     }
 
     public function completePendingRefund(OrderRefund $refund, ?string $transactionId = null): Order
     {
-        return (new RegisterOrderRefund)->completePending($refund, $transactionId);
+        return $this->registerOrderRefund->completePending($refund, $transactionId);
     }
 
     public function failPendingRefund(OrderRefund $refund, string $reason): OrderRefund
     {
-        return (new RegisterOrderRefund)->failPending($refund, $reason);
+        return $this->registerOrderRefund->failPending($refund, $reason);
     }
 
     public function recalculateTotals(Order $order): Order
@@ -152,41 +174,5 @@ final class OrderService implements OrderServiceInterface
         $order->recalculateTotals()->save();
 
         return $order->fresh();
-    }
-
-    private function assertOwnerBoundaryForMutation(Order $order, string $operation): void
-    {
-        if (! (bool) config('orders.owner.enabled', false)) {
-            return;
-        }
-
-        $owner = OwnerContext::resolve();
-
-        if ($order->hasOwner()) {
-            if ($owner === null) {
-                throw new RuntimeException(sprintf(
-                    'A matching owner context is required for %s when mutating owned orders.',
-                    $operation,
-                ));
-            }
-
-            if (! $order->belongsToOwner($owner)) {
-                throw new RuntimeException(sprintf(
-                    'Cross-owner mutation blocked for %s. The current owner context does not match the order owner.',
-                    $operation,
-                ));
-            }
-
-            return;
-        }
-
-        OwnerContext::assertResolvedOrExplicitGlobal(
-            $owner,
-            sprintf('Explicit global owner context is required for %s.', $operation),
-        );
-
-        if (! OwnerContext::isExplicitGlobal()) {
-            throw new RuntimeException(sprintf('Explicit global owner context is required for %s.', $operation));
-        }
     }
 }

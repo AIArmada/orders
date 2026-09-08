@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace AIArmada\Orders\Actions;
 
-use AIArmada\Orders\Actions\Concerns\BuildsOrderPdf;
+use AIArmada\Orders\Actions\Concerns\BuildsOrderDocs;
 use AIArmada\Orders\Models\Order;
 use Carbon\CarbonImmutable;
 use Spatie\LaravelPdf\PdfBuilder;
@@ -18,7 +18,7 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
  */
 final class GenerateReceipt
 {
-    use BuildsOrderPdf;
+    use BuildsOrderDocs;
 
     /**
      * Generate and save a receipt to a path.

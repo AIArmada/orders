@@ -157,6 +157,42 @@ final class OrderNote extends Model
                 $note->owner_type = null;
                 $note->owner_id = null;
             }
+
+            self::assertAuthorBelongsToOwner($note);
         });
+    }
+
+    private static function assertAuthorBelongsToOwner(OrderNote $note): void
+    {
+        if ($note->user_id === null) {
+            return;
+        }
+
+        /** @var class-string<Model> $userModel */
+        $userModel = config('auth.providers.users.model', Model::class);
+
+        if (! class_exists($userModel) || ! method_exists($userModel, 'ownerScopeConfig')) {
+            return;
+        }
+
+        $ownerConfig = $userModel::ownerScopeConfig();
+
+        if (! $ownerConfig->enabled) {
+            return;
+        }
+
+        $userId = $note->user_id;
+
+        if (! is_int($userId) && ! is_string($userId)) {
+            throw new InvalidArgumentException('A note author with a scalar key is required.');
+        }
+
+        OwnerWriteGuard::findOrFailForOwner(
+            $userModel,
+            $userId,
+            OwnerContext::CURRENT,
+            $ownerConfig->includeGlobal,
+            'The note author is not accessible in the current owner scope.',
+        );
     }
 }

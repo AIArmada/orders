@@ -32,14 +32,14 @@ final class PaymentConfirmationNotification extends Notification implements Shou
 
     public function toMail(object $notifiable): MailMessage
     {
-        $eventName = (string) config('orders.notifications.payment_confirmation.event_name', 'AI Awakening');
+        $eventName = (string) config('orders.notifications.payment_confirmation.event_name', 'Order Confirmation');
 
         return (new MailMessage)
             ->from(
-                config('orders.notifications.payment_confirmation.from_address', 'sales@unfairadvantage.my'),
+                config('orders.notifications.payment_confirmation.from_address', config('mail.from.address')),
                 config('orders.notifications.payment_confirmation.from_name', config('app.name')),
             )
-            ->subject(sprintf('Payment Confirmation - Unfair Advantage : %s', $eventName))
+            ->subject(sprintf('Payment Confirmation - %s', $eventName))
             ->markdown('orders::notifications.payment-confirmation', [
                 'order' => $this->order,
                 'transactionId' => $this->transactionId,

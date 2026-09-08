@@ -36,16 +36,6 @@ return [
         'auto_assign_on_create' => env('ORDERS_OWNER_AUTO_ASSIGN_ON_CREATE', true),
     ],
 
-    /* Behavior */
-    'status' => [
-        'allowed' => [ // created, pending_payment, processing
-            'created',
-            'pending_payment',
-            'processing',
-        ],
-        'default' => 'created',
-    ],
-
     'order_number' => [
         'prefix' => env('ORDERS_ORDER_NUMBER_PREFIX', 'ORD'),
         'separator' => env('ORDERS_ORDER_NUMBER_SEPARATOR', '-'),
@@ -85,9 +75,9 @@ return [
     'notifications' => [
         'payment_confirmation' => [
             'enabled' => (bool) env('ORDERS_PAYMENT_CONFIRMATION_ENABLED', true),
-            'from_address' => env('ORDERS_PAYMENT_CONFIRMATION_FROM', 'sales@unfairadvantage.my'),
+            'from_address' => env('ORDERS_PAYMENT_CONFIRMATION_FROM', env('MAIL_FROM_ADDRESS', '')),
             'from_name' => env('ORDERS_PAYMENT_CONFIRMATION_FROM_NAME'),
-            'event_name' => env('ORDERS_PAYMENT_CONFIRMATION_EVENT_NAME', 'AI Awakening'),
+            'event_name' => env('ORDERS_PAYMENT_CONFIRMATION_EVENT_NAME', 'Order Confirmation'),
         ],
     ],
 ];

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace AIArmada\Orders\Actions;
 
 use AIArmada\CommerceSupport\Support\OwnerContext;
+use AIArmada\Orders\Actions\Concerns\AssertsOrderOwnerBoundary;
 use AIArmada\Orders\Events\OrderCreated;
 use AIArmada\Orders\Exceptions\OrderIntakeConflictException;
 use AIArmada\Orders\Models\Order;
@@ -13,9 +14,13 @@ use AIArmada\Orders\States\Created;
 use AIArmada\Orders\States\PendingPayment;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
+use InvalidArgumentException;
+use RuntimeException;
 
 final class CreateOrder
 {
+    use AssertsOrderOwnerBoundary;
+
     /**
      * @param  array<string, mixed>  $orderData
      * @param  array<array<string, mixed>>  $items
@@ -44,7 +49,32 @@ final class CreateOrder
             }
         }
 
-        return $this->createInTransaction($orderData, $items, $billingAddress, $shippingAddress, $intakeSource, $intakeId);
+        $hasExplicitOrderNumber = isset($orderData['order_number'])
+            && is_string($orderData['order_number'])
+            && mb_trim($orderData['order_number']) !== '';
+
+        if ($hasExplicitOrderNumber) {
+            return $this->createInTransaction($orderData, $items, $billingAddress, $shippingAddress, $intakeSource, $intakeId);
+        }
+
+        for ($attempt = 1; $attempt <= 3; $attempt++) {
+            try {
+                return $this->createInTransaction(
+                    [...$orderData, 'order_number' => Order::generateOrderNumber()],
+                    $items,
+                    $billingAddress,
+                    $shippingAddress,
+                    $intakeSource,
+                    $intakeId,
+                );
+            } catch (QueryException $e) {
+                if ($attempt === 3 || ! $this->isOrderNumberDuplicate($e)) {
+                    throw $e;
+                }
+            }
+        }
+
+        throw new RuntimeException('Order number generation exhausted its retry budget.');
     }
 
     /**
@@ -149,11 +179,76 @@ final class CreateOrder
         return $sqlState === '23000' || $sqlState === '23505';
     }
 
+    private function isOrderNumberDuplicate(QueryException $e): bool
+    {
+        if (! $this->isDuplicateKeyError($e)) {
+            return false;
+        }
+
+        $message = mb_strtolower($e->getMessage());
+
+        return str_contains($message, 'order_number')
+            || str_contains($message, 'orders_order_number_unique');
+    }
+
+    /**
+     * Normalize address fields through addressing when that optional package is installed.
+     * Contact fields are deliberately retained because AddressData only owns postal fields.
+     *
+     * @param  array<string, mixed>  $addressData
+     * @return array<string, mixed>
+     */
+    private function normalizeAddressData(array $addressData): array
+    {
+        $normalizerClass = 'AIArmada\\Addressing\\Actions\\NormalizeAddressDataAction';
+
+        if (! class_exists($normalizerClass)) {
+            return $addressData;
+        }
+
+        $normalizer = app($normalizerClass);
+        $normalized = $normalizer->normalize($addressData);
+
+        if (! method_exists($normalized, 'toModelAttributes')) {
+            return $addressData;
+        }
+
+        /** @var array<string, mixed> $modelAttributes */
+        $modelAttributes = $normalized->toModelAttributes();
+
+        return array_merge($addressData, array_intersect_key($modelAttributes, array_flip([
+            'country_id',
+            'state_id',
+            'city_id',
+            'label',
+            'line1',
+            'line2',
+            'line3',
+            'city',
+            'state',
+            'postcode',
+            'country',
+            'country_code',
+            'formatted_address',
+            'latitude',
+            'longitude',
+            'components',
+            'metadata',
+            'google_maps_url',
+            'waze_url',
+            'navigation_links',
+            'provider',
+            'provider_place_id',
+        ])));
+    }
+
     /**
      * @param  array<string, mixed>  $itemData
      */
     public function addItem(Order $order, array $itemData): OrderItem
     {
+        $this->assertOwnerBoundaryForMutation($order, __METHOD__);
+
         return $order->items()->create([
             'purchasable_id' => $itemData['purchasable_id'] ?? null,
             'purchasable_type' => $itemData['purchasable_type'] ?? null,
@@ -174,6 +269,9 @@ final class CreateOrder
      */
     public function addAddress(Order $order, array $addressData, string $type): void
     {
+        $this->assertOwnerBoundaryForMutation($order, __METHOD__);
+
+        $addressData = $this->normalizeAddressData($addressData);
         $firstName = $addressData['first_name'] ?? null;
         $lastName = $addressData['last_name'] ?? null;
 
@@ -183,17 +281,10 @@ final class CreateOrder
             $lastName = $nameParts[1] ?? '';
         }
 
-        $country = $addressData['country_code'] ?? 'MY';
-        if (mb_strlen($country) > 2) {
-            $countryMap = [
-                'malaysia' => 'MY',
-                'singapore' => 'SG',
-                'indonesia' => 'ID',
-                'brunei' => 'BN',
-                'thailand' => 'TH',
-                'philippines' => 'PH',
-            ];
-            $country = $countryMap[mb_strtolower($country)] ?? 'MY';
+        $country = $addressData['country_code'] ?? $addressData['country'] ?? 'MY';
+
+        if (! is_string($country) || preg_match('/^[A-Za-z]{2}$/', $country) !== 1) {
+            throw new InvalidArgumentException('A two-letter country code is required for an order address.');
         }
 
         $order->addresses()->create([
@@ -206,7 +297,7 @@ final class CreateOrder
             'city' => $addressData['city'] ?? '',
             'state' => $addressData['state'] ?? null,
             'postcode' => $addressData['postcode'] ?? $addressData['postal_code'] ?? '',
-            'country_code' => $country,
+            'country_code' => mb_strtoupper($country),
             'phone' => $addressData['phone'] ?? null,
             'email' => $addressData['email'] ?? null,
             'metadata' => $addressData['metadata'] ?? null,

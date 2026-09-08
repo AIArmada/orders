@@ -6,8 +6,9 @@ namespace AIArmada\Orders\Listeners;
 
 use AIArmada\Orders\Events\InventoryDeductionRequired;
 use AIArmada\Orders\Events\OrderProcessingStarted;
+use Illuminate\Contracts\Queue\ShouldQueue;
 
-final class DeductInventoryOnPaymentConfirmed
+final class DeductInventoryOnPaymentConfirmed implements ShouldQueue
 {
     public function handle(OrderProcessingStarted $event): void
     {
