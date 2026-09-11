@@ -157,23 +157,49 @@ trait BuildsOrderDocs
      */
     private function buildCustomerData(Order $order): ?array
     {
-        $address = $order->billingAddress ?? $order->shippingAddress;
+        $address = $order->primaryAddress('billing') ?? $order->primaryAddress('shipping');
 
         if ($address === null) {
             return null;
         }
 
+        $metadata = $address->metadata;
+        $contact = is_array($metadata)
+            && is_array($metadata[Order::ADDRESS_CONTACT_METADATA_KEY] ?? null)
+            ? $metadata[Order::ADDRESS_CONTACT_METADATA_KEY]
+            : [];
+        $hasText = static fn (mixed $value): bool => is_string($value) && $value !== '';
+        $name = mb_trim(implode(' ', array_filter([
+            $contact['first_name'] ?? null,
+            $contact['last_name'] ?? null,
+        ], $hasText)));
+        $locality = implode(', ', array_filter([
+            $address->city,
+            $address->state,
+        ], $hasText));
+        $location = mb_trim(implode(' ', array_filter([
+            $locality,
+            $address->postcode,
+        ], $hasText)));
+
         return array_filter([
-            'name' => $address->getFullName(),
-            'email' => $address->email,
-            'phone' => $address->phone,
-            'address' => $address->getFormatted(),
+            'name' => $name !== '' ? $name : null,
+            'email' => is_string($contact['email'] ?? null) ? $contact['email'] : null,
+            'phone' => is_string($contact['phone'] ?? null) ? $contact['phone'] : null,
+            'address' => implode("\n", array_filter([
+                $name,
+                $contact['company'] ?? null,
+                $address->line1,
+                $address->line2,
+                $location,
+                $address->country_code ?? $address->country,
+            ], $hasText)),
             'city' => $address->city,
             'state' => $address->state,
             'postcode' => $address->postcode,
-            'country_code' => $address->country_code,
-            'company' => $address->company,
-        ], static fn (mixed $value): bool => $value !== null && $value !== '');
+            'country_code' => $address->country_code ?? $address->country,
+            'company' => is_string($contact['company'] ?? null) ? $contact['company'] : null,
+        ], $hasText);
     }
 
     /**
@@ -185,8 +211,8 @@ trait BuildsOrderDocs
         return array_merge([
             'order' => $order,
             'items' => $order->items,
-            'billingAddress' => $order->billingAddress,
-            'shippingAddress' => $order->shippingAddress,
+            'billing' => $order->primaryAddress('billing'),
+            'shipping' => $order->primaryAddress('shipping'),
             'payments' => $order->payments()->where('status', 'completed')->get(),
         ], $data);
     }

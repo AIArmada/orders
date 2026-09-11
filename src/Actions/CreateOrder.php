@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace AIArmada\Orders\Actions;
 
+use AIArmada\Addressing\Actions\NormalizeAddressDataAction;
+use AIArmada\Addressing\Models\Address;
+use AIArmada\Addressing\Support\ModelResolver;
 use AIArmada\CommerceSupport\Support\OwnerContext;
 use AIArmada\Orders\Actions\Concerns\AssertsOrderOwnerBoundary;
 use AIArmada\Orders\Events\OrderCreated;
@@ -45,7 +48,7 @@ final class CreateOrder
             if ($existing !== null) {
                 $this->validateIntakeMatch($existing, $orderData);
 
-                return $existing->fresh(['items', 'billingAddress', 'shippingAddress']);
+                return $existing->fresh(['items', 'addresses']);
             }
         }
 
@@ -116,7 +119,7 @@ final class CreateOrder
                     if ($existing !== null) {
                         $this->validateIntakeMatch($existing, $orderData);
 
-                        return $existing->fresh(['items', 'billingAddress', 'shippingAddress']);
+                        return $existing->fresh(['items', 'addresses']);
                     }
                 }
 
@@ -141,7 +144,7 @@ final class CreateOrder
                 event(new OrderCreated($order));
             });
 
-            return $order->fresh(['items', 'billingAddress', 'shippingAddress']);
+            return $order->fresh(['items', 'addresses']);
         });
     }
 
@@ -192,26 +195,15 @@ final class CreateOrder
     }
 
     /**
-     * Normalize address fields through addressing when that optional package is installed.
-     * Contact fields are deliberately retained because AddressData only owns postal fields.
+     * Normalize address fields through the canonical addressing package.
+     * Contact fields are retained in address metadata because Address only owns postal fields.
      *
      * @param  array<string, mixed>  $addressData
      * @return array<string, mixed>
      */
     private function normalizeAddressData(array $addressData): array
     {
-        $normalizerClass = 'AIArmada\\Addressing\\Actions\\NormalizeAddressDataAction';
-
-        if (! class_exists($normalizerClass)) {
-            return $addressData;
-        }
-
-        $normalizer = app($normalizerClass);
-        $normalized = $normalizer->normalize($addressData);
-
-        if (! method_exists($normalized, 'toModelAttributes')) {
-            return $addressData;
-        }
+        $normalized = app(NormalizeAddressDataAction::class)->normalize($addressData);
 
         /** @var array<string, mixed> $modelAttributes */
         $modelAttributes = $normalized->toModelAttributes();
@@ -287,21 +279,55 @@ final class CreateOrder
             throw new InvalidArgumentException('A two-letter country code is required for an order address.');
         }
 
-        $order->addresses()->create([
-            'type' => $type,
-            'first_name' => $firstName ?? '',
-            'last_name' => $lastName ?? '',
-            'company' => $addressData['company'] ?? null,
-            'line1' => $addressData['line1'] ?? $addressData['address_line_1'] ?? $addressData['address'] ?? '',
-            'line2' => $addressData['line2'] ?? $addressData['address_line_2'] ?? null,
-            'city' => $addressData['city'] ?? '',
-            'state' => $addressData['state'] ?? null,
-            'postcode' => $addressData['postcode'] ?? $addressData['postal_code'] ?? '',
+        $metadata = is_array($addressData['metadata'] ?? null) ? $addressData['metadata'] : [];
+        $contactMetadata = $metadata[Order::ADDRESS_CONTACT_METADATA_KEY] ?? [];
+        $metadata[Order::ADDRESS_CONTACT_METADATA_KEY] = array_merge(
+            is_array($contactMetadata) ? $contactMetadata : [],
+            [
+                'first_name' => $firstName ?? '',
+                'last_name' => $lastName ?? '',
+                'company' => $addressData['company'] ?? null,
+                'phone' => $addressData['phone'] ?? null,
+                'email' => $addressData['email'] ?? null,
+            ],
+        );
+
+        /** @var class-string<Address> $addressClass */
+        $addressClass = ModelResolver::addressClass();
+        $address = $addressClass::create([
+            ...array_intersect_key($addressData, array_flip([
+                'country_id',
+                'state_id',
+                'city_id',
+                'label',
+                'line1',
+                'line2',
+                'line3',
+                'city',
+                'state',
+                'postcode',
+                'country',
+                'country_code',
+                'formatted_address',
+                'latitude',
+                'longitude',
+                'components',
+                'google_maps_url',
+                'waze_url',
+                'navigation_links',
+                'provider',
+                'provider_place_id',
+            ])),
             'country_code' => mb_strtoupper($country),
-            'phone' => $addressData['phone'] ?? null,
-            'email' => $addressData['email'] ?? null,
-            'metadata' => $addressData['metadata'] ?? null,
+            'metadata' => $metadata,
         ]);
+
+        $order->attachAddress(
+            address: $address,
+            type: $type,
+            isPrimary: true,
+            label: is_string($addressData['label'] ?? null) ? $addressData['label'] : null,
+        );
     }
 
     private function findExistingIntake(string $intakeSource, string $intakeId): ?Order

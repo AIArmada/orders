@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace AIArmada\Orders\Models;
 
+use AIArmada\Addressing\Models\Address;
+use AIArmada\Addressing\Traits\HasAddresses;
 use AIArmada\CommerceSupport\Concerns\HasCommerceAudit;
 use AIArmada\CommerceSupport\Concerns\LogsCommerceActivity;
 use AIArmada\CommerceSupport\Support\OwnerContext;
@@ -22,7 +24,6 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Notifications\Notification;
@@ -65,8 +66,7 @@ use Spatie\ModelStates\HasStates;
  * @property CarbonInterface $created_at
  * @property CarbonInterface $updated_at
  * @property-read Collection<int, OrderItem> $items
- * @property-read OrderAddress|null $billingAddress
- * @property-read OrderAddress|null $shippingAddress
+ * @property-read Collection<int, Address> $addresses
  * @property-read Collection<int, OrderPayment> $payments
  * @property-read Collection<int, OrderRefund> $refunds
  * @property-read Collection<int, OrderNote> $orderNotes
@@ -74,6 +74,7 @@ use Spatie\ModelStates\HasStates;
 class Order extends Model implements Auditable
 {
     use FormatsMoney;
+    use HasAddresses;
     use HasCommerceAudit {
         getAuditThreshold as protected getAuditThresholdFromTrait;
         readyForAuditing as protected readyForAuditingFromTrait;
@@ -94,6 +95,8 @@ class Order extends Model implements Auditable
     private bool $allowUnsafeDelete = false;
 
     protected static string $ownerScopeConfigKey = 'orders.owner';
+
+    public const ADDRESS_CONTACT_METADATA_KEY = 'order_contact';
 
     public $incrementing = false;
 
@@ -192,30 +195,6 @@ class Order extends Model implements Auditable
     public function items(): HasMany
     {
         return $this->hasMany(OrderItem::class);
-    }
-
-    /**
-     * @return HasOne<OrderAddress, Order>
-     */
-    public function billingAddress(): HasOne
-    {
-        return $this->hasOne(OrderAddress::class)->where('type', 'billing');
-    }
-
-    /**
-     * @return HasOne<OrderAddress, Order>
-     */
-    public function shippingAddress(): HasOne
-    {
-        return $this->hasOne(OrderAddress::class)->where('type', 'shipping');
-    }
-
-    /**
-     * @return HasMany<OrderAddress, Order>
-     */
-    public function addresses(): HasMany
-    {
-        return $this->hasMany(OrderAddress::class);
     }
 
     /**
@@ -495,7 +474,7 @@ class Order extends Model implements Auditable
             }
 
             $order->items()->delete();
-            $order->addresses()->delete();
+            $order->addresses()->detach();
             $order->payments()->delete();
             $order->refunds()->delete();
             $order->orderNotes()->delete();
@@ -534,19 +513,27 @@ class Order extends Model implements Auditable
      */
     public function routeNotificationForMail(Notification $notification): array | string | null
     {
-        $address = $this->billingAddress ?? $this->shippingAddress;
+        $address = $this->primaryAddress('billing') ?? $this->primaryAddress('shipping');
 
         if ($address === null) {
             return null;
         }
 
-        $email = $address->email;
+        $metadata = $address->metadata;
+        $contact = is_array($metadata)
+            && is_array($metadata[static::ADDRESS_CONTACT_METADATA_KEY] ?? null)
+            ? $metadata[static::ADDRESS_CONTACT_METADATA_KEY]
+            : [];
+        $email = $contact['email'] ?? null;
 
         if (! is_string($email) || $email === '') {
             return null;
         }
 
-        $name = mb_trim((string) $address->getFullName());
+        $name = mb_trim(implode(' ', array_filter([
+            $contact['first_name'] ?? null,
+            $contact['last_name'] ?? null,
+        ], static fn (mixed $value): bool => is_string($value) && $value !== '')));
 
         return $name !== '' ? [$email => $name] : $email;
     }

@@ -259,38 +259,85 @@
             </div>
         </div>
 
+        @php
+            $hasText = static fn (mixed $value): bool => is_string($value) && $value !== '';
+            $billingMetadata = $billing?->metadata;
+            $billingContact = is_array($billingMetadata)
+                && is_array($billingMetadata[\AIArmada\Orders\Models\Order::ADDRESS_CONTACT_METADATA_KEY] ?? null)
+                ? $billingMetadata[\AIArmada\Orders\Models\Order::ADDRESS_CONTACT_METADATA_KEY]
+                : [];
+            $billingName = mb_trim(implode(' ', array_filter([
+                $billingContact['first_name'] ?? null,
+                $billingContact['last_name'] ?? null,
+            ], $hasText)));
+            $billingCompany = is_string($billingContact['company'] ?? null) ? $billingContact['company'] : null;
+            $billingPhone = is_string($billingContact['phone'] ?? null) ? $billingContact['phone'] : null;
+            $billingLocality = implode(', ', array_filter([
+                $billing?->city,
+                $billing?->state,
+            ], $hasText));
+            $billingLocation = mb_trim(implode(' ', array_filter([
+                $billingLocality,
+                $billing?->postcode,
+            ], $hasText)));
+            $billingCountry = $billing?->country_code ?? $billing?->country;
+
+            $shippingMetadata = $shipping?->metadata;
+            $shippingContact = is_array($shippingMetadata)
+                && is_array($shippingMetadata[\AIArmada\Orders\Models\Order::ADDRESS_CONTACT_METADATA_KEY] ?? null)
+                ? $shippingMetadata[\AIArmada\Orders\Models\Order::ADDRESS_CONTACT_METADATA_KEY]
+                : [];
+            $shippingName = mb_trim(implode(' ', array_filter([
+                $shippingContact['first_name'] ?? null,
+                $shippingContact['last_name'] ?? null,
+            ], $hasText)));
+            $shippingCompany = is_string($shippingContact['company'] ?? null) ? $shippingContact['company'] : null;
+            $shippingPhone = is_string($shippingContact['phone'] ?? null) ? $shippingContact['phone'] : null;
+            $shippingLocality = implode(', ', array_filter([
+                $shipping?->city,
+                $shipping?->state,
+            ], $hasText));
+            $shippingLocation = mb_trim(implode(' ', array_filter([
+                $shippingLocality,
+                $shipping?->postcode,
+            ], $hasText)));
+            $shippingCountry = $shipping?->country_code ?? $shipping?->country;
+        @endphp
+
         <!-- Addresses -->
-        <div class="addresses">
-            @if($billingAddress)
+        @if($billing || $shipping)
+            <div class="addresses">
+            @if($billing)
                 <div class="address-box">
                     <h3>Bill To</h3>
                     <p>
-                        <strong>{{ $billingAddress->getFullName() }}</strong><br>
-                        @if($billingAddress->company){{ $billingAddress->company }}<br>@endif
-                        {{ $billingAddress->line1 }}<br>
-                        @if($billingAddress->line2){{ $billingAddress->line2 }}<br>@endif
-                        {{ $billingAddress->city }}, {{ $billingAddress->state }} {{ $billingAddress->postcode }}<br>
-                        {{ $billingAddress->country_code }}
-                        @if($billingAddress->phone)<br>{{ $billingAddress->phone }}@endif
+                        @if($billingName !== '')<strong>{{ $billingName }}</strong><br>@endif
+                        @if($billingCompany !== null && $billingCompany !== ''){{ $billingCompany }}<br>@endif
+                        @if($billing->line1){{ $billing->line1 }}<br>@endif
+                        @if($billing->line2){{ $billing->line2 }}<br>@endif
+                        @if($billingLocation !== ''){{ $billingLocation }}<br>@endif
+                        @if($billingCountry){{ $billingCountry }}@endif
+                        @if($billingPhone !== null && $billingPhone !== '')<br>{{ $billingPhone }}@endif
                     </p>
                 </div>
             @endif
 
-            @if($shippingAddress)
+            @if($shipping)
                 <div class="address-box">
                     <h3>Ship To</h3>
                     <p>
-                        <strong>{{ $shippingAddress->getFullName() }}</strong><br>
-                        @if($shippingAddress->company){{ $shippingAddress->company }}<br>@endif
-                        {{ $shippingAddress->line1 }}<br>
-                        @if($shippingAddress->line2){{ $shippingAddress->line2 }}<br>@endif
-                        {{ $shippingAddress->city }}, {{ $shippingAddress->state }} {{ $shippingAddress->postcode }}<br>
-                        {{ $shippingAddress->country_code }}
-                        @if($shippingAddress->phone)<br>{{ $shippingAddress->phone }}@endif
+                        @if($shippingName !== '')<strong>{{ $shippingName }}</strong><br>@endif
+                        @if($shippingCompany !== null && $shippingCompany !== ''){{ $shippingCompany }}<br>@endif
+                        @if($shipping->line1){{ $shipping->line1 }}<br>@endif
+                        @if($shipping->line2){{ $shipping->line2 }}<br>@endif
+                        @if($shippingLocation !== ''){{ $shippingLocation }}<br>@endif
+                        @if($shippingCountry){{ $shippingCountry }}@endif
+                        @if($shippingPhone !== null && $shippingPhone !== '')<br>{{ $shippingPhone }}@endif
                     </p>
                 </div>
             @endif
-        </div>
+            </div>
+        @endif
 
         <!-- Items Table -->
         <table class="items-table">
