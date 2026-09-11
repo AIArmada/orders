@@ -188,6 +188,10 @@ class OrderPayment extends Model implements Auditable
 
     protected static function booted(): void
     {
+        static::saving(function (OrderPayment $payment): void {
+            $payment->assertTransactionIdentityIsAvailable();
+        });
+
         static::creating(function (OrderPayment $payment): void {
             if (! (bool) config('orders.owner.enabled', false)) {
                 return;
@@ -213,5 +217,27 @@ class OrderPayment extends Model implements Auditable
                 $payment->owner_id = null;
             }
         });
+    }
+
+    private function assertTransactionIdentityIsAvailable(): void
+    {
+        if ($this->transaction_id === null || mb_trim($this->transaction_id) === '') {
+            return;
+        }
+
+        $query = static::query()
+            ->where('order_id', $this->order_id)
+            ->where('gateway', $this->gateway)
+            ->where('transaction_id', $this->transaction_id);
+
+        if ($this->exists) {
+            $query->where($this->getKeyName(), '!=', $this->getKey());
+        }
+
+        if ($query->exists()) {
+            throw new InvalidArgumentException(
+                'A payment with this order, gateway, and transaction identity already exists.',
+            );
+        }
     }
 }

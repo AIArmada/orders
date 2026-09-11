@@ -22,6 +22,13 @@ use AIArmada\Shipping\Integrations\OrderFulfillmentHandler;
 interface FulfillmentHandler
 {
     /**
+     * Get the carriers exposed by the fulfillment integration.
+     *
+     * @return array<string, string>
+     */
+    public function availableCarriers(): array;
+
+    /**
      * Create a shipment for an order.
      *
      * @param  array<string, mixed>  $shipmentData  Carrier, service, etc.
