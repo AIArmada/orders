@@ -22,7 +22,7 @@ use AIArmada\Orders\Transitions\ShipmentCreated;
 use Illuminate\Database\Eloquent\Model;
 
 /**
- * Compatibility facade for order lifecycle operations.
+ * Stable facade for order lifecycle operations.
  *
  * Creation is owned by the CreateOrder actions; this service remains as the
  * stable interface used by existing integrations and Filament surfaces.
