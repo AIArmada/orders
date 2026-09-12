@@ -15,6 +15,8 @@ return new class extends Migration
         commerce_schema_create_if_missing(config('orders.database.tables.orders', 'orders'), function (Blueprint $table) use ($jsonType): void {
             $table->uuid('id')->primary();
             $table->string('order_number')->unique();
+            $table->string('intake_source')->nullable();
+            $table->string('intake_id')->nullable();
             $table->string('status', 50)->default('created')->index();
 
             $table->nullableUuidMorphs('customer');
@@ -49,6 +51,10 @@ return new class extends Migration
 
             $table->index(['status', 'created_at']);
             $table->index(['customer_type', 'customer_id', 'status']);
+            $table->unique(
+                ['owner_type', 'owner_id', 'intake_source', 'intake_id'],
+                $table->getTable() . '_intake_unique',
+            );
         });
     }
 
