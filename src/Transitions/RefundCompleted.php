@@ -67,6 +67,8 @@ final class RefundCompleted extends Transition
 
             $refund->markAsCompleted($this->transactionId);
             $order->unsetRelation('refunds');
+            $order->pending_refunded_total = max(0, (int) $order->pending_refunded_total - $amount);
+            $order->refunded_total = (int) $order->refunded_total + $amount;
 
             $refundCeiling = $order->getTotalPaid() > 0
                 ? $order->getTotalPaid()
@@ -85,8 +87,9 @@ final class RefundCompleted extends Transition
                 }
 
                 $order->refunded_at ??= CarbonImmutable::now();
-                $order->save();
             }
+
+            $order->save();
 
             event(new OrderRefunded($order, $amount, $refund->reason, $metadata));
 

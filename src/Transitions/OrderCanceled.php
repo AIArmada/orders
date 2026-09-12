@@ -33,6 +33,10 @@ final class OrderCanceled extends Transition
     public function handle(): Order
     {
         return DB::transaction(function (): Order {
+            $this->order->newQuery()
+                ->lockForUpdate()
+                ->findOrFail($this->order->getKey());
+            $this->order->refresh();
             $this->order->status->transitionTo(Canceled::class);
             $this->order->canceled_at = CarbonImmutable::now();
             $this->order->cancellation_reason = $this->reason;
@@ -77,6 +81,8 @@ final class OrderCanceled extends Transition
                     'status' => RefundStatus::Pending,
                     'reason' => 'Order canceled: ' . $this->reason,
                 ]);
+                $this->order->pending_refunded_total = (int) $this->order->pending_refunded_total + $totalPaid;
+                $this->order->save();
             }
         }
     }

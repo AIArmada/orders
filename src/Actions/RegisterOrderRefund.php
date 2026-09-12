@@ -133,7 +133,7 @@ final class RegisterOrderRefund
                 throw new RuntimeException("Order {$lockedOrder->order_number} has no completed payment to refund.");
             }
 
-            return $lockedOrder->refunds()->create([
+            $refund = $lockedOrder->refunds()->create([
                 'payment_id' => $payment->getKey(),
                 'gateway' => $payment->gateway,
                 'transaction_id' => $transactionId,
@@ -143,6 +143,11 @@ final class RegisterOrderRefund
                 'reason' => $reason,
                 'metadata' => $metadata,
             ]);
+
+            $lockedOrder->pending_refunded_total = (int) $lockedOrder->pending_refunded_total + $amount;
+            $lockedOrder->save();
+
+            return $refund;
         });
     }
 
@@ -188,11 +193,37 @@ final class RegisterOrderRefund
         $order = $refund->order;
         $this->assertOwnerBoundaryForMutation($order, __METHOD__);
 
-        if (! $refund->isPending()) {
-            return $refund;
-        }
+        DB::transaction(function () use ($refund, $reason): void {
+            /** @var OrderRefund $lockedRefund */
+            $lockedRefund = $refund->newQuery()
+                ->lockForUpdate()
+                ->findOrFail($refund->getKey());
 
-        $refund->markAsFailed($reason);
+            if (! $lockedRefund->isPending()) {
+                return;
+            }
+
+            $lockedOrder = $lockedRefund->order;
+
+            if (! $lockedOrder instanceof Order) {
+                throw new RuntimeException('The refund must belong to an order.');
+            }
+
+            $lockedOrder->newQuery()
+                ->lockForUpdate()
+                ->findOrFail($lockedOrder->getKey());
+            $lockedOrder->refresh();
+            $lockedRefund->setRelation('order', $lockedOrder);
+
+            $lockedRefund->markAsFailed($reason);
+
+            $lockedOrder->pending_refunded_total = max(
+                0,
+                (int) $lockedOrder->pending_refunded_total - (int) $lockedRefund->amount,
+            );
+            $lockedOrder->save();
+        });
+
         event(new OrderRefundFailed($order, $refund, $reason, $refund->metadata ?? []));
 
         return $refund;

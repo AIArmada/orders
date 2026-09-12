@@ -48,6 +48,9 @@ use Spatie\ModelStates\HasStates;
  * @property int $shipping_total
  * @property int $tax_total
  * @property int $grand_total
+ * @property int $paid_total
+ * @property int $refunded_total
+ * @property int $pending_refunded_total
  * @property string $currency
  * @property string|null $notes
  * @property string|null $internal_notes
@@ -142,6 +145,9 @@ class Order extends Model implements Auditable
         'shipping_total' => 0,
         'tax_total' => 0,
         'grand_total' => 0,
+        'paid_total' => 0,
+        'refunded_total' => 0,
+        'pending_refunded_total' => 0,
         'currency' => 'MYR',
     ];
 
@@ -349,29 +355,24 @@ class Order extends Model implements Auditable
 
     public function getTotalPaid(): int
     {
-        return $this->payments()
-            ->where('status', PaymentStatus::Completed)
-            ->sum('amount');
+        return (int) $this->paid_total;
     }
 
     public function getTotalRefunded(): int
     {
-        return $this->refunds()
-            ->where('status', RefundStatus::Completed)
-            ->sum('amount');
+        return (int) $this->refunded_total;
     }
 
     public function getTotalPendingRefunded(): int
     {
-        return $this->refunds()
-            ->where('status', RefundStatus::Pending)
-            ->sum('amount');
+        return (int) $this->pending_refunded_total;
     }
 
     public function getRemainingRefundable(): int
     {
-        $refundCeiling = $this->getTotalPaid() > 0
-            ? $this->getTotalPaid()
+        $totalPaid = $this->getTotalPaid();
+        $refundCeiling = $totalPaid > 0
+            ? $totalPaid
             : (int) $this->grand_total;
 
         return max(0, $refundCeiling - $this->getTotalRefunded() - $this->getTotalPendingRefunded());
@@ -379,7 +380,7 @@ class Order extends Model implements Auditable
 
     public function getBalanceDue(): int
     {
-        return max(0, $this->grand_total - $this->getTotalPaid() + $this->getTotalRefunded());
+        return max(0, $this->grand_total - $this->getTotalPaid());
     }
 
     public function isFullyPaid(): bool
@@ -398,12 +399,12 @@ class Order extends Model implements Auditable
 
     public function recalculateTotals(): self
     {
-        $itemsTotal = (int) $this->items()->sum('total');
+        $subtotal = (int) $this->items()->sum(DB::raw('quantity * unit_price'));
         $taxTotal = (int) $this->items()->sum('tax_amount');
 
-        $this->subtotal = $itemsTotal;
+        $this->subtotal = $subtotal;
         $this->tax_total = $taxTotal;
-        $this->grand_total = $itemsTotal + $this->shipping_total - $this->discount_total;
+        $this->grand_total = $subtotal + $taxTotal + $this->shipping_total - $this->discount_total;
 
         return $this;
     }
@@ -436,6 +437,9 @@ class Order extends Model implements Auditable
             'shipping_total',
             'tax_total',
             'grand_total',
+            'paid_total',
+            'refunded_total',
+            'pending_refunded_total',
             'paid_at',
             'shipped_at',
             'delivered_at',
@@ -494,6 +498,9 @@ class Order extends Model implements Auditable
             'shipping_total' => 'integer',
             'tax_total' => 'integer',
             'grand_total' => 'integer',
+            'paid_total' => 'integer',
+            'refunded_total' => 'integer',
+            'pending_refunded_total' => 'integer',
             'metadata' => 'array',
             'paid_at' => 'immutable_datetime',
             'shipped_at' => 'immutable_datetime',
