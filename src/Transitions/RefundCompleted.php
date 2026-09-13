@@ -67,8 +67,9 @@ final class RefundCompleted extends Transition
 
             $refund->markAsCompleted($this->transactionId);
             $order->unsetRelation('refunds');
-            $order->pending_refunded_total = max(0, (int) $order->pending_refunded_total - $amount);
-            $order->refunded_total = (int) $order->refunded_total + $amount;
+            // The status-change event already moved the totals; refresh so
+            // reads and the save below use fresh totals.
+            $order->refresh();
 
             $refundCeiling = $order->getTotalPaid() > 0
                 ? $order->getTotalPaid()

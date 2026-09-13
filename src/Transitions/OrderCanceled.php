@@ -73,6 +73,7 @@ final class OrderCanceled extends Transition
         if ($totalPaid > 0) {
             $payment = $this->order->payments()->where('status', PaymentStatus::Completed)->first();
             if ($payment) {
+                // The created-refund event syncs pending_refunded_total.
                 $this->order->refunds()->create([
                     'payment_id' => $payment->id,
                     'gateway' => $payment->gateway,
@@ -81,8 +82,8 @@ final class OrderCanceled extends Transition
                     'status' => RefundStatus::Pending,
                     'reason' => 'Order canceled: ' . $this->reason,
                 ]);
-                $this->order->pending_refunded_total = (int) $this->order->pending_refunded_total + $totalPaid;
-                $this->order->save();
+
+                $this->order->refresh();
             }
         }
     }

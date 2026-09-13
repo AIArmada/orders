@@ -76,7 +76,9 @@ final class RefundProcessed extends Transition
                 'metadata' => $this->metadata,
             ]);
             $this->order->unsetRelation('refunds');
-            $this->order->refunded_total = (int) $this->order->refunded_total + $this->amount;
+            // The created-refund event already synced refunded_total; refresh
+            // so reads and the save below use fresh totals.
+            $this->order->refresh();
 
             $isFullyRefunded = $this->order->getTotalRefunded() >= $refundCeiling;
 

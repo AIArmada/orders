@@ -217,6 +217,58 @@ class OrderPayment extends Model implements Auditable
                 $payment->owner_id = null;
             }
         });
+
+        // Keep the parent order's cached paid_total in sync for every write
+        // path (transitions, actions, and direct creates alike) using atomic
+        // increments. paid_total is cumulative: only entering Completed adds.
+        static::created(function (OrderPayment $payment): void {
+            if ($payment->status === PaymentStatus::Completed && (int) $payment->amount > 0) {
+                Order::query()->whereKey($payment->order_id)->increment('paid_total', (int) $payment->amount);
+            }
+        });
+
+        static::updated(function (OrderPayment $payment): void {
+            $wasCompleted = self::paymentStatusWas($payment, PaymentStatus::Completed);
+            $isCompleted = $payment->status === PaymentStatus::Completed;
+            $amount = (int) $payment->amount;
+
+            if (! $wasCompleted && $isCompleted) {
+                if ($amount > 0) {
+                    Order::query()->whereKey($payment->order_id)->increment('paid_total', $amount);
+                }
+
+                return;
+            }
+
+            if (! $wasCompleted || ! $isCompleted || ! $payment->wasChanged('amount')) {
+                return;
+            }
+
+            $delta = $amount - (int) $payment->getRawOriginal('amount');
+
+            if ($delta > 0) {
+                Order::query()->whereKey($payment->order_id)->increment('paid_total', $delta);
+            } elseif ($delta < 0) {
+                Order::query()->whereKey($payment->order_id)->decrement('paid_total', abs($delta));
+            }
+        });
+
+        static::deleted(function (OrderPayment $payment): void {
+            if ($payment->status === PaymentStatus::Completed && (int) $payment->amount > 0) {
+                Order::query()->whereKey($payment->order_id)->decrement('paid_total', (int) $payment->amount);
+            }
+        });
+    }
+
+    private static function paymentStatusWas(OrderPayment $payment, PaymentStatus $status): bool
+    {
+        if (! $payment->wasChanged('status')) {
+            return $payment->status === $status;
+        }
+
+        $original = $payment->getOriginal('status');
+
+        return $original === $status || $original === $status->value;
     }
 
     private function assertTransactionIdentityIsAvailable(): void

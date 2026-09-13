@@ -83,7 +83,9 @@ final class PaymentConfirmed extends Transition
                 return $this->handleExistingPayment($existingPayment, $originalOrder);
             }
 
-            $this->order->paid_total = (int) $this->order->paid_total + $this->amount;
+            // The created-payment event already synced paid_total; refresh so the
+            // save below cannot clobber it with stale in-memory attributes.
+            $this->order->refresh();
 
             // Attribute affiliate commission (if package present)
             if (config('orders.integrations.affiliates.enabled', true)) {

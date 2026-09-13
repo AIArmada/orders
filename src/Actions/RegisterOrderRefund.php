@@ -133,6 +133,7 @@ final class RegisterOrderRefund
                 throw new RuntimeException("Order {$lockedOrder->order_number} has no completed payment to refund.");
             }
 
+            // The created-refund event already synced pending_refunded_total.
             $refund = $lockedOrder->refunds()->create([
                 'payment_id' => $payment->getKey(),
                 'gateway' => $payment->gateway,
@@ -143,9 +144,6 @@ final class RegisterOrderRefund
                 'reason' => $reason,
                 'metadata' => $metadata,
             ]);
-
-            $lockedOrder->pending_refunded_total = (int) $lockedOrder->pending_refunded_total + $amount;
-            $lockedOrder->save();
 
             return $refund;
         });
@@ -217,11 +215,9 @@ final class RegisterOrderRefund
 
             $lockedRefund->markAsFailed($reason);
 
-            $lockedOrder->pending_refunded_total = max(
-                0,
-                (int) $lockedOrder->pending_refunded_total - (int) $lockedRefund->amount,
-            );
-            $lockedOrder->save();
+            // The status-change event already moved the totals; refresh so
+            // any later reads in this request see fresh values.
+            $lockedOrder->refresh();
         });
 
         event(new OrderRefundFailed($order, $refund, $reason, $refund->metadata ?? []));

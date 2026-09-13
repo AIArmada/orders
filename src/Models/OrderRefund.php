@@ -217,5 +217,80 @@ final class OrderRefund extends Model implements Auditable
                 $refund->owner_id = null;
             }
         });
+
+        // Keep the parent order's cached refund totals in sync for every write
+        // path using atomic increments. Pending holds reservations, Completed
+        // holds settled refunds; Failed holds nothing.
+        static::created(function (OrderRefund $refund): void {
+            $column = self::refundTotalColumn($refund->status);
+            $amount = (int) $refund->amount;
+
+            if ($column === null || $amount <= 0) {
+                return;
+            }
+
+            Order::query()->whereKey($refund->order_id)->increment($column, $amount);
+        });
+
+        static::updated(function (OrderRefund $refund): void {
+            if (! $refund->wasChanged('status')
+                && ! $refund->wasChanged('amount')
+            ) {
+                return;
+            }
+
+            $oldColumn = self::refundTotalColumn($refund->getRawOriginal('status'));
+            $newColumn = self::refundTotalColumn($refund->status);
+            $oldAmount = (int) $refund->getRawOriginal('amount');
+            $newAmount = (int) $refund->amount;
+
+            if ($oldColumn === $newColumn) {
+                if ($newColumn === null) {
+                    return;
+                }
+
+                $delta = $newAmount - $oldAmount;
+
+                if ($delta > 0) {
+                    Order::query()->whereKey($refund->order_id)->increment($newColumn, $delta);
+                } elseif ($delta < 0) {
+                    Order::query()->whereKey($refund->order_id)->decrement($newColumn, abs($delta));
+                }
+
+                return;
+            }
+
+            if ($oldColumn !== null && $oldAmount > 0) {
+                Order::query()->whereKey($refund->order_id)->decrement($oldColumn, $oldAmount);
+            }
+
+            if ($newColumn !== null && $newAmount > 0) {
+                Order::query()->whereKey($refund->order_id)->increment($newColumn, $newAmount);
+            }
+        });
+
+        static::deleted(function (OrderRefund $refund): void {
+            $column = self::refundTotalColumn($refund->status);
+            $amount = (int) $refund->amount;
+
+            if ($column === null || $amount <= 0) {
+                return;
+            }
+
+            Order::query()->whereKey($refund->order_id)->decrement($column, $amount);
+        });
+    }
+
+    private static function refundTotalColumn(RefundStatus | string | null $status): ?string
+    {
+        $status = $status instanceof RefundStatus
+            ? $status
+            : RefundStatus::tryFrom((string) $status);
+
+        return match ($status) {
+            RefundStatus::Pending => 'pending_refunded_total',
+            RefundStatus::Completed => 'refunded_total',
+            default => null,
+        };
     }
 }

@@ -13,8 +13,6 @@ use AIArmada\CommerceSupport\Traits\FormatsMoney;
 use AIArmada\CommerceSupport\Traits\HasOwner;
 use AIArmada\CommerceSupport\Traits\HasOwnerScopeConfig;
 use AIArmada\Orders\Database\Factories\OrderFactory;
-use AIArmada\Orders\Enums\PaymentStatus;
-use AIArmada\Orders\Enums\RefundStatus;
 use AIArmada\Orders\States\OrderStatus;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
