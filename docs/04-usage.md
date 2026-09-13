@@ -102,6 +102,17 @@ CancelOrder::run(
 CompleteOrder::run($order);
 ```
 
+### Deleting Orders (Prefer Cancel/Refund)
+
+Prefer `CancelOrder` / `RegisterOrderRefund` over deleting. `Order::delete()` refuses paid or final orders with a `LogicException`; pass `delete(force: true)` only for an explicit administrative retention override. Deletes run in a transaction that removes items, payments, refunds, and notes and detaches addresses.
+
+```php
+use AIArmada\Orders\Models\Order;
+
+$order->delete(); // throws on paid/final orders
+$order->delete(force: true); // admin retention override only
+```
+
 ## OrderService (Compatibility)
 
 The `OrderServiceInterface` is a public service contract that delegates to Actions:
@@ -198,6 +209,18 @@ if ($order->isFullyPaid()) {
 
 `paid_total`, `refunded_total`, and `pending_refunded_total` are cached on the order so balance checks (`getTotalPaid()`, `getTotalRefunded()`, `getRemainingRefundable()`, `getBalanceDue()`, `isFullyPaid()`) never fan out into per-relation sums. The caches are the single source of truth for reads and are kept in sync by `OrderPayment`/`OrderRefund` model events — every write path (transitions, actions, and direct creates) flows through them, so do not assign these columns manually. Item totals still come from `recalculateTotals()`, which uses ex-tax subtotals: `grand_total = subtotal + tax_total + shipping_total - discount_total`.
 
+## Fulfillment & Addresses
+
+Orders are carrier-agnostic: pass an explicit carrier string to `ship()` — no carrier is hardcoded. Fulfillment resolves through the `AIArmada\Orders\Contracts\FulfillmentHandler` contract registered via `AIArmada\Orders\Support\OrderHandlerRegistrar` (the shipping package auto-registers its handler when installed).
+
+```php
+use AIArmada\Orders\Services\OrderService;
+
+app(OrderService::class)->ship($order, 'DHL', 'TRACK123');
+```
+
+Addresses are normalized through the canonical `AIArmada\Addressing\Actions\NormalizeAddressDataAction`; contact fields stay in address metadata. `status` is always a Spatie `AIArmada\Orders\States\OrderStatus` instance (see `05-state-machine.md`).
+
 ## Events
 
 The package dispatches events during order lifecycle:
@@ -287,6 +310,10 @@ $receipt = app(CreateOrderReceiptDoc::class)->execute(
 Unlike invoice creation, receipt creation is idempotent by returning the existing receipt document when one is already present.
 
 Both actions share the same internal order-doc builder, so customer data, order totals, tax, discount, gateway metadata, and owner scope handling stay aligned.
+
+### Shared Builder: `BuildsOrderDocs`
+
+`CreateOrderInvoiceDoc`, `CreateOrderReceiptDoc`, `GenerateInvoice`, and `GenerateReceipt` all share the `AIArmada\Orders\Actions\Concerns\BuildsOrderDocs` trait. Persist actions write `Docs` rows through that builder; generators are render-only — they return a PDF download (or HTML fallback without a PDF runtime) and never create `Docs` records.
 
 ### PDF Invoice Output
 
