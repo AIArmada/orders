@@ -12,7 +12,7 @@ return new class extends Migration
     {
         $jsonType = commerce_json_column_type('orders', 'jsonb');
 
-        commerce_schema_create_if_missing(config('orders.database.tables.order_payments', 'order_payments'), function (Blueprint $table) use ($jsonType): void {
+        Schema::create(config('orders.database.tables.order_payments', 'order_payments'), function (Blueprint $table) use ($jsonType): void {
             $table->uuid('id')->primary();
             $table->foreignUuid('order_id');
 
@@ -36,7 +36,7 @@ return new class extends Migration
             $table->index(['gateway', 'transaction_id']);
             $table->unique(
                 ['order_id', 'gateway', 'transaction_id'],
-                'order_payments_order_gateway_transaction_unique',
+                $table->getTable() . '_order_gateway_transaction_non_null_unique',
             );
         });
     }

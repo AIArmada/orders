@@ -12,7 +12,7 @@ return new class extends Migration
     {
         $jsonType = commerce_json_column_type('orders', 'jsonb');
 
-        commerce_schema_create_if_missing(config('orders.database.tables.orders', 'orders'), function (Blueprint $table) use ($jsonType): void {
+        Schema::create(config('orders.database.tables.orders', 'orders'), function (Blueprint $table) use ($jsonType): void {
             $table->uuid('id')->primary();
             $table->string('order_number')->unique();
             $table->string('intake_source')->nullable();
@@ -28,6 +28,9 @@ return new class extends Migration
             $table->unsignedBigInteger('shipping_total')->default(0);
             $table->unsignedBigInteger('tax_total')->default(0);
             $table->unsignedBigInteger('grand_total')->default(0);
+            $table->unsignedBigInteger('paid_total')->default(0);
+            $table->unsignedBigInteger('refunded_total')->default(0);
+            $table->unsignedBigInteger('pending_refunded_total')->default(0);
             $table->string('currency', 3)->default('MYR');
 
             $table->text('notes')->nullable();
@@ -53,7 +56,7 @@ return new class extends Migration
             $table->index(['customer_type', 'customer_id', 'status']);
             $table->unique(
                 ['owner_type', 'owner_id', 'intake_source', 'intake_id'],
-                $table->getTable() . '_intake_unique',
+                $table->getTable() . '_intake_non_null_unique',
             );
         });
     }

@@ -194,6 +194,10 @@ if ($order->isFullyPaid()) {
 }
 ```
 
+### Cached payment/refund totals
+
+`paid_total`, `refunded_total`, and `pending_refunded_total` are cached on the order so balance checks (`getTotalPaid()`, `getTotalRefunded()`, `getRemainingRefundable()`, `getBalanceDue()`, `isFullyPaid()`) never fan out into per-relation sums. The caches are the single source of truth for reads and are kept in sync by `OrderPayment`/`OrderRefund` model events — every write path (transitions, actions, and direct creates) flows through them, so do not assign these columns manually. Item totals still come from `recalculateTotals()`, which uses ex-tax subtotals: `grand_total = subtotal + tax_total + shipping_total - discount_total`.
+
 ## Events
 
 The package dispatches events during order lifecycle:

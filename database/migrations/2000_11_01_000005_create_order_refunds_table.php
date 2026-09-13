@@ -12,7 +12,7 @@ return new class extends Migration
     {
         $jsonType = commerce_json_column_type('orders', 'jsonb');
 
-        commerce_schema_create_if_missing(config('orders.database.tables.order_refunds', 'order_refunds'), function (Blueprint $table) use ($jsonType): void {
+        Schema::create(config('orders.database.tables.order_refunds', 'order_refunds'), function (Blueprint $table) use ($jsonType): void {
             $table->uuid('id')->primary();
             $table->foreignUuid('order_id');
             $table->foreignUuid('payment_id')->nullable();
