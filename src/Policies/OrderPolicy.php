@@ -5,12 +5,14 @@ declare(strict_types=1);
 namespace AIArmada\Orders\Policies;
 
 use AIArmada\Orders\Models\Order;
+use AIArmada\Orders\Policies\Concerns\HandlesOrderRelationAuthorization;
 use Illuminate\Auth\Access\HandlesAuthorization;
 use Illuminate\Foundation\Auth\User;
 
 final class OrderPolicy
 {
     use HandlesAuthorization;
+    use HandlesOrderRelationAuthorization;
 
     public function viewAny(User $user): bool
     {
@@ -19,12 +21,12 @@ final class OrderPolicy
 
     public function view(User $user, Order $order): bool
     {
-        return $user->can('view_order');
+        return $this->canAccessOrder($user, $order, 'view_order');
     }
 
     public function create(User $user): bool
     {
-        return $user->can('create_order');
+        return $this->canCreateForOwner($user, 'create_order');
     }
 
     public function update(User $user, Order $order): bool
@@ -33,7 +35,7 @@ final class OrderPolicy
             return false;
         }
 
-        return $user->can('update_order');
+        return $this->canAccessOrder($user, $order, 'update_order');
     }
 
     public function addNote(User $user, Order $order): bool
@@ -42,12 +44,13 @@ final class OrderPolicy
             return false;
         }
 
-        return $user->can('update_order') || $user->can('add_order_note');
+        return $this->canAccessOrder($user, $order, 'update_order')
+            || $this->canAccessOrder($user, $order, 'add_order_note');
     }
 
     public function delete(User $user, Order $order): bool
     {
-        return $user->can('delete_order');
+        return $this->canAccessOrder($user, $order, 'delete_order');
     }
 
     public function cancel(User $user, Order $order): bool
@@ -56,7 +59,7 @@ final class OrderPolicy
             return false;
         }
 
-        return $user->can('cancel_order');
+        return $this->canAccessOrder($user, $order, 'cancel_order');
     }
 
     public function refund(User $user, Order $order): bool
@@ -65,6 +68,6 @@ final class OrderPolicy
             return false;
         }
 
-        return $user->can('refund_order');
+        return $this->canAccessOrder($user, $order, 'refund_order');
     }
 }

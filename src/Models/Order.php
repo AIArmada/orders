@@ -34,6 +34,7 @@ use Spatie\ModelStates\HasStates;
 /**
  * @property string $id
  * @property string $order_number
+ * @property string|null $invoice_number
  * @property string|null $intake_source
  * @property string|null $intake_id
  * @property OrderStatus $status
@@ -104,8 +105,6 @@ class Order extends Model implements Auditable
     protected $keyType = 'string';
 
     protected $fillable = [
-        'owner_type',
-        'owner_id',
         'order_number',
         'intake_source',
         'intake_id',
@@ -395,6 +394,14 @@ class Order extends Model implements Auditable
         return $this->items()->sum('quantity');
     }
 
+    /**
+     * Recompute subtotal, tax, and grand totals from the order lines.
+     *
+     * The order-level discount_total is the authoritative total discount: it
+     * already includes any per-line discount_amount breakdown (both cart
+     * intake paths fold line discounts into it), so the line breakdown is
+     * informational here and must not be subtracted a second time.
+     */
     public function recalculateTotals(): self
     {
         $subtotal = (int) $this->items()->sum(DB::raw('quantity * unit_price'));

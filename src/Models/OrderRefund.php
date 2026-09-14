@@ -71,9 +71,6 @@ final class OrderRefund extends Model implements Auditable
         'reason',
         'notes',
         'metadata',
-        'refunded_at',
-        'failed_at',
-        'provider_submission_started_at',
     ];
 
     /**
@@ -193,16 +190,12 @@ final class OrderRefund extends Model implements Auditable
     protected static function booted(): void
     {
         static::creating(function (OrderRefund $refund): void {
-            if (! (bool) config('orders.owner.enabled', false)) {
-                return;
-            }
-
             if (blank($refund->order_id)) {
                 throw new InvalidArgumentException('order_id is required.');
             }
 
-            if (! Order::ownerScopeConfig()->enabled) {
-                $order = Order::query()->findOrFail($refund->order_id);
+            if (! (bool) config('orders.owner.enabled', false)) {
+                $order = Order::query()->withoutOwnerScope()->findOrFail($refund->order_id);
             } else {
                 $owner = OwnerContext::resolve();
                 $includeGlobal = (bool) config('orders.owner.include_global', false);

@@ -18,6 +18,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\QueryException;
 use InvalidArgumentException;
 use OwenIt\Auditing\Contracts\Auditable;
 
@@ -67,8 +68,6 @@ class OrderPayment extends Model implements Auditable
         'failure_reason',
         'metadata',
         'paid_at',
-        'failed_at',
-        'refunded_at',
     ];
 
     /**
@@ -193,16 +192,12 @@ class OrderPayment extends Model implements Auditable
         });
 
         static::creating(function (OrderPayment $payment): void {
-            if (! (bool) config('orders.owner.enabled', false)) {
-                return;
-            }
-
             if (blank($payment->order_id)) {
                 throw new InvalidArgumentException('order_id is required.');
             }
 
-            if (! Order::ownerScopeConfig()->enabled) {
-                $order = Order::query()->findOrFail($payment->order_id);
+            if (! (bool) config('orders.owner.enabled', false)) {
+                $order = Order::query()->withoutOwnerScope()->findOrFail($payment->order_id);
             } else {
                 $owner = OwnerContext::resolve();
                 $includeGlobal = (bool) config('orders.owner.include_global', false);
@@ -291,5 +286,45 @@ class OrderPayment extends Model implements Auditable
                 'A payment with this order, gateway, and transaction identity already exists.',
             );
         }
+    }
+
+    protected function performInsert(Builder $query)
+    {
+        try {
+            return parent::performInsert($query);
+        } catch (QueryException $e) {
+            $this->convertIdentityConflict($e);
+        }
+    }
+
+    protected function performUpdate(Builder $query)
+    {
+        try {
+            return parent::performUpdate($query);
+        } catch (QueryException $e) {
+            $this->convertIdentityConflict($e);
+        }
+    }
+
+    /**
+     * Convert an insert/update race on the identity key into the same domain
+     * exception the pre-check raises, instead of leaking a raw query error.
+     */
+    private function convertIdentityConflict(QueryException $e): never
+    {
+        $sqlState = (string) $e->getPrevious()?->getCode();
+
+        if (
+            ($sqlState === '23000' || $sqlState === '23505')
+            && $this->transaction_id !== null
+            && mb_trim($this->transaction_id) !== ''
+        ) {
+            throw new InvalidArgumentException(
+                'A payment with this order, gateway, and transaction identity already exists.',
+                previous: $e,
+            );
+        }
+
+        throw $e;
     }
 }

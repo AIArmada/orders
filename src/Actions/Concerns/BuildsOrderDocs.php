@@ -83,6 +83,15 @@ trait BuildsOrderDocs
         array $metadata = [],
         bool $generatePdf = false,
     ): DocData {
+        // DocService validates explicit totals against the items-derived values,
+        // and shipping travels as a document line, so the supplied subtotal must
+        // include it; the tax rate is derived from the order so the doc-side
+        // computation reproduces the order tax.
+        $linesSubtotalMinor = (int) $order->subtotal + max(0, (int) $order->shipping_total);
+        $taxRateBasisPoints = $linesSubtotalMinor > 0
+            ? (int) round(((int) $order->tax_total) * 10000 / $linesSubtotalMinor)
+            : 0;
+
         return new DocData(
             docType: $docType->value,
             docableType: $order->getMorphClass(),
@@ -90,9 +99,10 @@ trait BuildsOrderDocs
             status: DocStatus::fromString(Paid::class),
             issueDate: $order->paid_at ?? CarbonImmutable::now(),
             items: $this->buildItems($order),
-            subtotalMinor: $order->subtotal,
+            subtotalMinor: $linesSubtotalMinor,
             totalMinor: $order->grand_total,
             taxAmountMinor: $order->tax_total,
+            taxRateBasisPoints: $taxRateBasisPoints,
             discountAmountMinor: $order->discount_total,
             currency: $order->currency,
             notes: $order->notes,

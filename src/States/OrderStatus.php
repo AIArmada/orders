@@ -153,6 +153,6 @@ abstract class OrderStatus extends State
      */
     private static function resolveDefaultStateClass(): string
     {
-        return Processing::class;
+        return Created::class;
     }
 }

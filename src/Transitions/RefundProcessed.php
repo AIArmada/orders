@@ -63,8 +63,9 @@ final class RefundProcessed extends Transition
             // Find the original payment
             $payment = $this->order->payments()->where('status', PaymentStatus::Completed)->first();
 
-            // Record refund
-            $this->order->refunds()->create([
+            // Record refund. The lifecycle timestamp is assigned directly
+            // because refund lifecycle fields are not mass assignable.
+            $refund = $this->order->refunds()->make([
                 'payment_id' => $payment?->id,
                 'gateway' => $payment?->gateway ?? 'manual',
                 'transaction_id' => $this->transactionId,
@@ -72,9 +73,10 @@ final class RefundProcessed extends Transition
                 'currency' => $this->order->currency,
                 'status' => RefundStatus::Completed,
                 'reason' => $this->reason,
-                'refunded_at' => $now,
                 'metadata' => $this->metadata,
             ]);
+            $refund->refunded_at = $now;
+            $refund->save();
             $this->order->unsetRelation('refunds');
             // The created-refund event already synced refunded_total; refresh
             // so reads and the save below use fresh totals.

@@ -37,6 +37,10 @@ final class PaymentConfirmed extends Transition
 
     public function handle(): Order
     {
+        if ($this->amount <= 0) {
+            throw new InvalidArgumentException('Payment amount must be greater than zero.');
+        }
+
         $originalOrder = $this->order;
 
         return DB::transaction(function () use ($originalOrder): Order {
@@ -51,6 +55,14 @@ final class PaymentConfirmed extends Transition
 
             if ($existingPayment !== null) {
                 return $this->handleExistingPayment($existingPayment, $originalOrder);
+            }
+
+            $balanceDue = $this->order->getBalanceDue();
+
+            if ($this->amount > $balanceDue) {
+                throw new InvalidArgumentException(
+                    "Payment amount cannot exceed the outstanding balance due of {$balanceDue}."
+                );
             }
 
             try {

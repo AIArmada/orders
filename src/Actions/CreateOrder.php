@@ -15,7 +15,9 @@ use AIArmada\Orders\Models\Order;
 use AIArmada\Orders\Models\OrderItem;
 use AIArmada\Orders\States\Created;
 use AIArmada\Orders\States\PendingPayment;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\QueryException;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 use RuntimeException;
@@ -43,14 +45,54 @@ final class CreateOrder
         $this->assertOwnerBoundaryForCreation();
 
         if ($intakeSource !== null && $intakeId !== null) {
-            $existing = $this->findExistingIntake($intakeSource, $intakeId);
+            // Serialize concurrent creates for the same intake identity. The
+            // lookup-then-create below cannot rely on the unique key alone:
+            // nullable owner columns are distinct on some drivers, so two
+            // global rows with the same pair would not conflict.
+            return Cache::lock($this->intakeLockKey($intakeSource, $intakeId), 10)->block(5, function () use (
+                $orderData,
+                $items,
+                $billingAddress,
+                $shippingAddress,
+                $intakeSource,
+                $intakeId,
+            ): Order {
+                $existing = $this->findExistingIntake($intakeSource, $intakeId);
 
-            if ($existing !== null) {
-                $this->validateIntakeMatch($existing, $orderData);
+                if ($existing !== null) {
+                    $this->validateIntakeMatch($existing, $orderData);
 
-                return $existing->fresh(['items', 'addresses']);
-            }
+                    return $existing->fresh(['items', 'addresses']);
+                }
+
+                return $this->createAfterValidation($orderData, $items, $billingAddress, $shippingAddress, $intakeSource, $intakeId);
+            });
         }
+
+        return $this->createAfterValidation($orderData, $items, $billingAddress, $shippingAddress, $intakeSource, $intakeId);
+    }
+
+    /**
+     * @param  array<string, mixed>  $orderData
+     * @param  array<array<string, mixed>>  $items
+     * @param  array<string, mixed>|null  $billingAddress
+     * @param  array<string, mixed>|null  $shippingAddress
+     */
+    private function createAfterValidation(
+        array $orderData,
+        array $items,
+        ?array $billingAddress,
+        ?array $shippingAddress,
+        ?string $intakeSource,
+        ?string $intakeId,
+    ): Order {
+        $this->validateTotalsInvariant($orderData);
+
+        foreach ($items as $itemData) {
+            $this->validateItemData($itemData);
+        }
+
+        $this->validateItemDiscountsFolded($orderData, $items);
 
         $hasExplicitOrderNumber = isset($orderData['order_number'])
             && is_string($orderData['order_number'])
@@ -80,6 +122,111 @@ final class CreateOrder
         throw new RuntimeException('Order number generation exhausted its retry budget.');
     }
 
+    private function intakeLockKey(string $intakeSource, string $intakeId): string
+    {
+        $owner = OwnerContext::resolve();
+
+        $scope = $owner instanceof Model
+            ? $owner->getMorphClass() . ':' . $owner->getKey()
+            : 'global';
+
+        return 'orders-intake-' . sha1($scope . '|' . $intakeSource . '|' . $intakeId);
+    }
+
+    /**
+     * Caller totals must be well-shaped: integer minor units, never negative,
+     * and a zero grand total is only accepted when the discount covers the
+     * subtotal, tax, and shipping (free orders). Positive grand totals are
+     * engine-defined — the cart pipeline legitimately produces totals where
+     * the grand is not the naive component sum — so no exact-sum check is
+     * applied here; money movement stays bounded by the stored grand total
+     * at payment time instead.
+     *
+     * @param  array<string, mixed>  $orderData
+     */
+    private function validateTotalsInvariant(array $orderData): void
+    {
+        $totals = [];
+
+        foreach (['subtotal', 'discount_total', 'shipping_total', 'tax_total', 'grand_total'] as $key) {
+            $value = $this->coerceOrderInt($orderData[$key] ?? 0, "Order total {$key}");
+
+            if ($value < 0) {
+                throw new InvalidArgumentException("Order total {$key} cannot be negative.");
+            }
+
+            $totals[$key] = $value;
+        }
+
+        if ($totals['grand_total'] === 0 && $totals['discount_total'] < $totals['subtotal'] + $totals['tax_total'] + $totals['shipping_total']) {
+            throw new InvalidArgumentException('Order totals are inconsistent: a zero grand_total requires discount_total to cover subtotal, tax_total, and shipping_total.');
+        }
+    }
+
+    /**
+     * Item payloads are validated before any row is written so invalid input
+     * fails fast without holding a transaction open.
+     *
+     * A blank name is accepted because cart and checkout lines may carry no
+     * name; a missing or non-string name is rejected.
+     *
+     * @param  array<string, mixed>  $itemData
+     */
+    private function validateItemData(array $itemData): void
+    {
+        if (! isset($itemData['name']) || ! is_string($itemData['name'])) {
+            throw new InvalidArgumentException('An order item name is required.');
+        }
+
+        if ($this->coerceOrderInt($itemData['quantity'] ?? 1, 'Order item quantity') < 1) {
+            throw new InvalidArgumentException('Order item quantity must be at least 1.');
+        }
+
+        foreach (['unit_price', 'discount_amount', 'tax_amount'] as $key) {
+            if ($this->coerceOrderInt($itemData[$key] ?? 0, "Order item {$key}") < 0) {
+                throw new InvalidArgumentException("Order item {$key} cannot be negative.");
+            }
+        }
+    }
+
+    /**
+     * Per-line discount_amount is an informational breakdown: the order-level
+     * discount_total is authoritative (see Order::recalculateTotals), so the
+     * caller must have folded line discounts into it. Reject payloads where
+     * the breakdown exceeds the folded total instead of silently dropping
+     * the difference from the grand total.
+     *
+     * @param  array<string, mixed>  $orderData
+     * @param  array<array<string, mixed>>  $items
+     */
+    private function validateItemDiscountsFolded(array $orderData, array $items): void
+    {
+        $lineDiscounts = 0;
+
+        foreach ($items as $itemData) {
+            $lineDiscounts += $this->coerceOrderInt($itemData['discount_amount'] ?? 0, 'Order item discount_amount');
+        }
+
+        $discountTotal = $this->coerceOrderInt($orderData['discount_total'] ?? 0, 'Order total discount_total');
+
+        if ($lineDiscounts > $discountTotal) {
+            throw new InvalidArgumentException('Order totals are inconsistent: sum of item discount_amount exceeds discount_total; fold line discounts into discount_total.');
+        }
+    }
+
+    private function coerceOrderInt(mixed $value, string $field): int
+    {
+        if (is_int($value)) {
+            return $value;
+        }
+
+        if (is_string($value) && preg_match('/^-?\d+$/', mb_trim($value)) === 1) {
+            return (int) $value;
+        }
+
+        throw new InvalidArgumentException("{$field} must be an integer.");
+    }
+
     /**
      * @param  array<string, mixed>  $orderData
      * @param  array<array<string, mixed>>  $items
@@ -94,7 +241,11 @@ final class CreateOrder
         ?string $intakeSource,
         ?string $intakeId,
     ): Order {
-        return DB::transaction(function () use ($orderData, $items, $billingAddress, $shippingAddress, $intakeSource, $intakeId): Order {
+        // Per-row item creates stay inside the transaction on purpose: they carry
+        // the owner-inherit guard, total calculation, and activity logging that
+        // a bulk insert would bypass. Only the final re-read moves outside so
+        // the write lock is not held for the follow-up selects.
+        $orderKey = DB::transaction(function () use ($orderData, $items, $billingAddress, $shippingAddress, $intakeSource, $intakeId): string {
             try {
                 $order = Order::create([
                     'order_number' => $orderData['order_number'] ?? Order::generateOrderNumber(),
@@ -119,7 +270,7 @@ final class CreateOrder
                     if ($existing !== null) {
                         $this->validateIntakeMatch($existing, $orderData);
 
-                        return $existing->fresh(['items', 'addresses']);
+                        return (string) $existing->getKey();
                     }
                 }
 
@@ -144,8 +295,10 @@ final class CreateOrder
                 event(new OrderCreated($order));
             });
 
-            return $order->fresh(['items', 'addresses']);
+            return (string) $order->getKey();
         });
+
+        return Order::query()->with(['items', 'addresses'])->findOrFail($orderKey);
     }
 
     /**
@@ -154,23 +307,22 @@ final class CreateOrder
     private function validateIntakeMatch(Order $existing, array $orderData): void
     {
         $matches = [
-            (string) $existing->customer_id === (string) ($orderData['customer_id'] ?? ''),
-            (string) $existing->customer_type === (string) ($orderData['customer_type'] ?? ''),
+            mb_trim((string) $existing->customer_id) === mb_trim((string) ($orderData['customer_id'] ?? '')),
+            mb_trim((string) $existing->customer_type) === mb_trim((string) ($orderData['customer_type'] ?? '')),
             $existing->subtotal === (int) ($orderData['subtotal'] ?? 0),
             $existing->discount_total === (int) ($orderData['discount_total'] ?? 0),
             $existing->shipping_total === (int) ($orderData['shipping_total'] ?? 0),
             $existing->tax_total === (int) ($orderData['tax_total'] ?? 0),
             $existing->grand_total === (int) ($orderData['grand_total'] ?? 0),
-            mb_strtoupper((string) $existing->currency) === mb_strtoupper(
+            mb_trim(mb_strtoupper((string) $existing->currency)) === mb_trim(mb_strtoupper(
                 (string) ($orderData['currency'] ?? config('orders.currency.default', 'MYR')),
-            ),
+            )),
         ];
 
         if (in_array(false, $matches, true)) {
             throw OrderIntakeConflictException::duplicate(
                 (string) $existing->intake_source,
                 (string) $existing->intake_id,
-                (string) $existing->getKey(),
             );
         }
     }
@@ -240,16 +392,17 @@ final class CreateOrder
     public function addItem(Order $order, array $itemData): OrderItem
     {
         $this->assertOwnerBoundaryForMutation($order, __METHOD__);
+        $this->validateItemData($itemData);
 
         return $order->items()->create([
             'purchasable_id' => $itemData['purchasable_id'] ?? null,
             'purchasable_type' => $itemData['purchasable_type'] ?? null,
             'name' => $itemData['name'],
             'sku' => $itemData['sku'] ?? null,
-            'quantity' => $itemData['quantity'] ?? 1,
-            'unit_price' => $itemData['unit_price'] ?? 0,
-            'discount_amount' => $itemData['discount_amount'] ?? 0,
-            'tax_amount' => $itemData['tax_amount'] ?? 0,
+            'quantity' => $this->coerceOrderInt($itemData['quantity'] ?? 1, 'Order item quantity'),
+            'unit_price' => $this->coerceOrderInt($itemData['unit_price'] ?? 0, 'Order item unit_price'),
+            'discount_amount' => $this->coerceOrderInt($itemData['discount_amount'] ?? 0, 'Order item discount_amount'),
+            'tax_amount' => $this->coerceOrderInt($itemData['tax_amount'] ?? 0, 'Order item tax_amount'),
             'currency' => $itemData['currency'] ?? $order->currency,
             'options' => $itemData['options'] ?? null,
             'metadata' => $itemData['metadata'] ?? null,
@@ -332,8 +485,12 @@ final class CreateOrder
 
     private function findExistingIntake(string $intakeSource, string $intakeId): ?Order
     {
+        // Intake deduplication stays scope-local on purpose: an owned-context
+        // retry must never match (and return) a global-scope row, and a
+        // global-context retry only matches global rows. Cross-scope matching
+        // would turn the idempotent retry into a cross-scope read oracle.
         return Order::query()
-            ->forOwner(includeGlobal: (bool) config('orders.owner.include_global', false))
+            ->forOwner(includeGlobal: false)
             ->where('intake_source', $intakeSource)
             ->where('intake_id', $intakeId)
             ->first();

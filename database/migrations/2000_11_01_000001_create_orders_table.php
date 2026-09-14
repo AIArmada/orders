@@ -15,6 +15,7 @@ return new class extends Migration
         Schema::create(config('orders.database.tables.orders', 'orders'), function (Blueprint $table) use ($jsonType): void {
             $table->uuid('id')->primary();
             $table->string('order_number')->unique();
+            $table->string('invoice_number')->nullable()->unique();
             $table->string('intake_source')->nullable();
             $table->string('intake_id')->nullable();
             $table->string('status', 50)->default('created')->index();

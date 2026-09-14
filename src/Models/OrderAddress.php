@@ -196,16 +196,12 @@ final class OrderAddress extends Model implements Auditable
     protected static function booted(): void
     {
         static::creating(function (OrderAddress $address): void {
-            if (! (bool) config('orders.owner.enabled', false)) {
-                return;
-            }
-
             if (blank($address->order_id)) {
                 throw new InvalidArgumentException('order_id is required.');
             }
 
-            if (! Order::ownerScopeConfig()->enabled) {
-                $order = Order::query()->findOrFail($address->order_id);
+            if (! (bool) config('orders.owner.enabled', false)) {
+                $order = Order::query()->withoutOwnerScope()->findOrFail($address->order_id);
             } else {
                 $owner = OwnerContext::resolve();
                 $includeGlobal = (bool) config('orders.owner.include_global', false);

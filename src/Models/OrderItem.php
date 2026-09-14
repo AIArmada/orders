@@ -77,11 +77,6 @@ class OrderItem extends Model implements Auditable
         'tax_amount',
         'total',
         'currency',
-        'status',
-        'shipped_at',
-        'delivered_at',
-        'returned_at',
-        'canceled_at',
         'options',
         'metadata',
     ];
@@ -170,11 +165,18 @@ class OrderItem extends Model implements Auditable
 
     /**
      * Calculate the line total based on quantity, price, discount, and tax.
+     *
+     * Negative inputs are rejected; a discount larger than the line subtotal
+     * floors the goods portion at zero instead of producing a negative total.
      */
     public function calculateTotal(): int
     {
+        if ($this->quantity < 0 || $this->unit_price < 0 || $this->discount_amount < 0 || $this->tax_amount < 0) {
+            throw new InvalidArgumentException('Order item quantity, prices, discounts, and taxes cannot be negative.');
+        }
+
         $subtotal = $this->quantity * $this->unit_price;
-        $afterDiscount = $subtotal - $this->discount_amount;
+        $afterDiscount = max(0, $subtotal - $this->discount_amount);
 
         return $afterDiscount + $this->tax_amount;
     }
@@ -202,16 +204,12 @@ class OrderItem extends Model implements Auditable
     protected static function booted(): void
     {
         static::creating(function (OrderItem $item): void {
-            if (! (bool) config('orders.owner.enabled', false)) {
-                return;
-            }
-
             if (blank($item->order_id)) {
                 throw new InvalidArgumentException('order_id is required.');
             }
 
-            if (! Order::ownerScopeConfig()->enabled) {
-                $order = Order::query()->findOrFail($item->order_id);
+            if (! (bool) config('orders.owner.enabled', false)) {
+                $order = Order::query()->withoutOwnerScope()->findOrFail($item->order_id);
             } else {
                 $owner = OwnerContext::resolve();
                 $includeGlobal = (bool) config('orders.owner.include_global', false);
