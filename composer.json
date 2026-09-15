@@ -20,8 +20,8 @@
   "require": {
     "aiarmada/addressing": "self.version",
     "aiarmada/commerce-support": "self.version",
-    "spatie/browsershot": "^5.3.0",
-    "spatie/laravel-pdf": "^2.9.0",
+    "spatie/browsershot": "^5.4.0",
+    "spatie/laravel-pdf": "^2.13.1",
     "php": "^8.4"
   },
   "autoload": {
