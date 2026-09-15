@@ -7,7 +7,7 @@ title: Installation
 ## Requirements
 
 - PHP 8.4 or higher
-- Laravel 12.x
+- Laravel 13.x
 - Composer
 
 ## Install via Composer
