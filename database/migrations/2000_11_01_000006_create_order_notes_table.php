@@ -26,9 +26,4 @@ return new class extends Migration
             $table->index(['order_id', 'visibility']);
         });
     }
-
-    public function down(): void
-    {
-        Schema::dropIfExists(config('orders.database.tables.order_notes', 'order_notes'));
-    }
 };

@@ -44,9 +44,4 @@ return new class extends Migration
             $table->index(['order_id', 'created_at']);
         });
     }
-
-    public function down(): void
-    {
-        Schema::dropIfExists(config('orders.database.tables.order_items', 'order_items'));
-    }
 };

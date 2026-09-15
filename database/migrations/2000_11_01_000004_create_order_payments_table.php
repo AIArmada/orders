@@ -40,9 +40,4 @@ return new class extends Migration
             );
         });
     }
-
-    public function down(): void
-    {
-        Schema::dropIfExists(config('orders.database.tables.order_payments', 'order_payments'));
-    }
 };
