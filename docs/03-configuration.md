@@ -15,7 +15,6 @@ Configure table names and JSON column types:
     'tables' => [
         'orders' => 'orders',
         'order_items' => 'order_items',
-        'order_addresses' => 'order_addresses',
         'order_payments' => 'order_payments',
         'order_refunds' => 'order_refunds',
         'order_notes' => 'order_notes',
@@ -61,6 +60,22 @@ Configure owner-based data isolation:
         'auto_assign_on_create' => env('ORDERS_OWNER_AUTO_ASSIGN_ON_CREATE', true),
     ],
 ```
+
+## Address Snapshots
+
+By default each order keeps one fresh addressing `Address` copy per type.
+Enable immutable snapshots to additionally write one tamper-proof
+`AddressSnapshot` per `addAddress()` call, with reason `order_billing` or
+`order_shipping`:
+
+```php
+'address_snapshots' => [
+        'enabled' => env('ORDERS_ADDRESS_SNAPSHOTS_ENABLED', false),
+    ],
+```
+
+Reads keep resolving through `primaryAddress()`; snapshots are a write-side
+audit record.
 
 ## Order Number Format
 
@@ -170,6 +185,7 @@ The payment confirmation notification is sent when an order transitions to paid.
 | `ORDERS_OWNER_ENABLED` | `false` | Enable multitenancy/owner scoping |
 | `ORDERS_OWNER_INCLUDE_GLOBAL` | `false` | Include global records in queries |
 | `ORDERS_OWNER_AUTO_ASSIGN_ON_CREATE` | `true` | Auto-assign owner on create |
+| `ORDERS_ADDRESS_SNAPSHOTS_ENABLED` | `false` | Write an immutable `AddressSnapshot` per order address |
 | `ORDERS_ORDER_NUMBER_PREFIX` | `ORD` | Order number prefix |
 | `ORDERS_ORDER_NUMBER_SEPARATOR` | `-` | Order number separator |
 | `ORDERS_ORDER_NUMBER_LENGTH` | `8` | Random portion length |
@@ -198,7 +214,6 @@ return [
         'tables' => [
             'orders' => 'orders',
             'order_items' => 'order_items',
-            'order_addresses' => 'order_addresses',
             'order_payments' => 'order_payments',
             'order_refunds' => 'order_refunds',
             'order_notes' => 'order_notes',
@@ -220,6 +235,10 @@ return [
         'enabled' => env('ORDERS_OWNER_ENABLED', false),
         'include_global' => env('ORDERS_OWNER_INCLUDE_GLOBAL', false),
         'auto_assign_on_create' => env('ORDERS_OWNER_AUTO_ASSIGN_ON_CREATE', true),
+    ],
+
+    'address_snapshots' => [
+        'enabled' => env('ORDERS_ADDRESS_SNAPSHOTS_ENABLED', false),
     ],
 
     'status' => [

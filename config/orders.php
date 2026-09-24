@@ -9,7 +9,6 @@ return [
         'tables' => [
             'orders' => 'orders',
             'order_items' => 'order_items',
-            'order_addresses' => 'order_addresses',
             'order_payments' => 'order_payments',
             'order_refunds' => 'order_refunds',
             'order_notes' => 'order_notes',
@@ -34,6 +33,10 @@ return [
         'enabled' => env('ORDERS_OWNER_ENABLED', false),
         'include_global' => env('ORDERS_OWNER_INCLUDE_GLOBAL', false),
         'auto_assign_on_create' => env('ORDERS_OWNER_AUTO_ASSIGN_ON_CREATE', true),
+    ],
+
+    'address_snapshots' => [
+        'enabled' => env('ORDERS_ADDRESS_SNAPSHOTS_ENABLED', false),
     ],
 
     'order_number' => [

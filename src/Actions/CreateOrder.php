@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace AIArmada\Orders\Actions;
 
+use AIArmada\Addressing\Actions\CreateAddressSnapshotAction;
 use AIArmada\Addressing\Actions\NormalizeAddressDataAction;
 use AIArmada\Addressing\Models\Address;
 use AIArmada\Addressing\Support\ModelResolver;
@@ -481,6 +482,14 @@ final class CreateOrder
             isPrimary: true,
             label: is_string($addressData['label'] ?? null) ? $addressData['label'] : null,
         );
+
+        if (config('orders.address_snapshots.enabled', false)) {
+            app(CreateAddressSnapshotAction::class)->execute(
+                snapshotable: $order,
+                address: $address,
+                reason: 'order_' . $type,
+            );
+        }
     }
 
     private function findExistingIntake(string $intakeSource, string $intakeId): ?Order

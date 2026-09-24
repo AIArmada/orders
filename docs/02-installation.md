@@ -90,7 +90,6 @@ The following tables are created:
 |-------|-------------|
 | `orders` | Main order records |
 | `order_items` | Line items for orders |
-| `order_addresses` | Billing/shipping addresses |
 | `order_payments` | Payment records |
 | `order_refunds` | Refund records |
 | `order_notes` | Order notes |

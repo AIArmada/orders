@@ -48,14 +48,11 @@ The main order model.
 // Items in this order
 $order->items(): HasMany<OrderItem>
 
-// Billing address
-$order->billingAddress(): HasOne<OrderAddress>
-
-// Shipping address  
-$order->shippingAddress(): HasOne<OrderAddress>
-
-// All addresses
-$order->addresses(): HasMany<OrderAddress>
+// Attached addresses (addressing package; one fresh copy per order and type)
+$order->addresses(): MorphToMany<Address>
+$order->primaryAddress('billing'): ?Address
+$order->primaryAddress('shipping'): ?Address
+$order->addressesOfType('shipping'): Collection<int, Address>
 
 // Payment records
 $order->payments(): HasMany<OrderPayment>
@@ -135,45 +132,15 @@ $item->order(): BelongsTo<Order>
 $item->purchasable(): MorphTo
 ```
 
-### OrderAddress
+### Order addresses
 
-Billing and shipping addresses.
-
-| Property | Type | Description |
-|----------|------|-------------|
-| `id` | `string` | UUID primary key |
-| `order_id` | `string` | Parent order ID |
-| `type` | `string` | `billing` or `shipping` |
-| `first_name` | `string\|null` | First name |
-| `last_name` | `string\|null` | Last name |
-| `company` | `string\|null` | Company name |
-| `line1` | `string` | Address line 1 |
-| `line2` | `string\|null` | Address line 2 |
-| `city` | `string` | City |
-| `state` | `string\|null` | State/province |
-| `postcode` | `string\|null` | Postal/ZIP code |
-| `country` | `string` | ISO country code |
-| `phone` | `string\|null` | Phone number |
-| `email` | `string\|null` | Email address |
-| `metadata` | `array\|null` | Additional metadata |
-
-#### Methods
-
-```php
-// Get full name
-$address->fullName(): string  // "John Doe"
-
-// Get formatted single-line address
-$address->formattedAddress(): string
-// "123 Main St, Kuala Lumpur, WP 50000, MY"
-
-// Get formatted multi-line address
-$address->formattedAddressMultiLine(): string
-
-// Scopes
-OrderAddress::billing(): Builder
-OrderAddress::shipping(): Builder
-```
+Orders carry no local address model. `CreateOrder::addAddress()` (via
+`OrderServiceInterface`) stores one fresh addressing `Address` copy per order
+and type, with contact fields under `metadata.order_contact`. Resolve them
+through `HasAddresses`: `primaryAddress('billing')`,
+`primaryAddress('shipping')`, `addressesOfType($type)`. When
+`orders.address_snapshots.enabled` is set, each call also writes an immutable
+`AddressSnapshot` with reason `order_billing` or `order_shipping`.
 
 ### OrderPayment
 
@@ -293,7 +260,7 @@ interface OrderServiceInterface
     public function createOrder(array $data): Order;
     public function createFromCart(Cart $cart, array $data = []): Order;
     public function addItem(Order $order, array $data): OrderItem;
-    public function addAddress(Order $order, array $data): OrderAddress;
+    public function addAddress(Order $order, array $addressData, string $type): void;
     public function cancel(Order $order, string $reason, ?string $canceledBy = null): Order;
     public function confirmPayment(Order $order, string $transactionId, string $gateway, int $amount): Order;
     public function ship(Order $order, string $carrier, string $trackingNumber): Order;

@@ -219,7 +219,7 @@ use AIArmada\Orders\Services\OrderService;
 app(OrderService::class)->ship($order, 'DHL', 'TRACK123');
 ```
 
-Addresses are normalized through the canonical `AIArmada\Addressing\Actions\NormalizeAddressDataAction`; contact fields stay in address metadata. `status` is always a Spatie `AIArmada\Orders\States\OrderStatus` instance (see `05-state-machine.md`).
+Addresses are normalized through the canonical `AIArmada\Addressing\Actions\NormalizeAddressDataAction`; contact fields stay in address metadata. Each `addAddress()` call attaches one fresh `Address` copy per order and type, and additionally writes an immutable `AddressSnapshot` (`order_billing` / `order_shipping`) when `orders.address_snapshots.enabled` is set. `status` is always a Spatie `AIArmada\Orders\States\OrderStatus` instance (see `05-state-machine.md`).
 
 ## Events
 
