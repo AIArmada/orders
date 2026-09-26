@@ -16,7 +16,7 @@ keywords:
 
 ## Snapshot
 - Composer: `aiarmada/orders`
-- Role: Order records, payments/refunds, notes, invoices, 13-state machine.
+- Role: Order records, payments/refunds, notes, invoices, 12-state machine.
 - Triggers: order, refund, payment, invoice, state-machine
 - Search first: `src/Models, src/Actions, src/States, config, docs`
 - Related: `filament-orders`, `checkout`, `shipping`, `docs`

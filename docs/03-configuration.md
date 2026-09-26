@@ -12,6 +12,7 @@ Configure table names and JSON column types:
 
 ```php
 'database' => [
+    'json_column_type' => env('ORDERS_JSON_COLUMN_TYPE', 'jsonb'),
     'tables' => [
         'orders' => 'orders',
         'order_items' => 'order_items',
@@ -21,6 +22,8 @@ Configure table names and JSON column types:
     ],
 ],
 ```
+
+`json_column_type` is read by every orders migration.
 
 ## Currency
 
@@ -113,11 +116,11 @@ Enable/disable integrations with other Commerce packages:
 ```php
 'integrations' => [
     'inventory' => [
-        'enabled' => true, // Auto-reserve/release inventory
+        'enabled' => env('ORDERS_INTEGRATIONS_INVENTORY_ENABLED', true), // Auto-reserve/release inventory
     ],
 
     'affiliates' => [
-        'enabled' => true, // Track affiliate commissions
+        'enabled' => env('ORDERS_INTEGRATIONS_AFFILIATES_ENABLED', true), // Track affiliate commissions
     ],
 
     'docs' => [
@@ -126,25 +129,6 @@ Enable/disable integrations with other Commerce packages:
     ],
 ],
 ```
-
-## Order Status Defaults
-
-Define which order states are allowed as initial values and the default used when no status is provided:
-
-```php
-'status' => [
-    'allowed' => [
-        'created',
-        'pending_payment',
-        'processing',
-    ],
-    'default' => 'created',
-],
-```
-
-Recommended usage:
-- **E-commerce flow**: keep `processing` as default (order created after payment).
-- **Traditional flow**: set default to `created` or pass an explicit status on create.
 
 The Docs integration is disabled by default. Enable it only when you want `OrderPaid` to auto-create persisted Docs invoices.
 
@@ -167,10 +151,10 @@ Configure audit logging behavior:
 ```php
 'notifications' => [
     'payment_confirmation' => [
-        'enabled' => env('ORDERS_PAYMENT_CONFIRMATION_ENABLED', true),
-        'from_address' => env('ORDERS_PAYMENT_CONFIRMATION_FROM', 'sales@unfairadvantage.my'),
+        'enabled' => (bool) env('ORDERS_PAYMENT_CONFIRMATION_ENABLED', true),
+        'from_address' => env('ORDERS_PAYMENT_CONFIRMATION_FROM', env('MAIL_FROM_ADDRESS', '')),
         'from_name' => env('ORDERS_PAYMENT_CONFIRMATION_FROM_NAME'),
-        'event_name' => env('ORDERS_PAYMENT_CONFIRMATION_EVENT_NAME', 'AI Awakening'),
+        'event_name' => env('ORDERS_PAYMENT_CONFIRMATION_EVENT_NAME', 'Order Confirmation'),
     ],
 ],
 ```
@@ -195,88 +179,18 @@ The payment confirmation notification is sent when an order transitions to paid.
 | `ORDERS_COMPANY_ADDRESS` | empty | Sender address rendered on invoices |
 | `ORDERS_COMPANY_PHONE` | empty | Sender phone rendered on invoices |
 | `ORDERS_COMPANY_EMAIL` | empty | Sender email rendered on invoices |
+| `ORDERS_INTEGRATIONS_INVENTORY_ENABLED` | `true` | Enable inventory reserve/release on order transitions |
+| `ORDERS_INTEGRATIONS_AFFILIATES_ENABLED` | `true` | Enable affiliate commission tracking |
 | `ORDERS_INTEGRATIONS_DOCS_ENABLED` | `false` | Enable automatic Docs invoice creation on `OrderPaid` |
 | `ORDERS_INTEGRATIONS_DOCS_GENERATE_PDF` | `false` | Generate PDFs when Docs invoices are auto-created |
 | `ORDERS_AUDIT_ENABLED` | `true` | Enable audit logging |
 | `ORDERS_AUDIT_THRESHOLD` | `500` | Audit threshold in cents |
 | `ORDERS_PAYMENT_CONFIRMATION_ENABLED` | `true` | Enable payment confirmation emails on `OrderPaid` |
-| `ORDERS_PAYMENT_CONFIRMATION_FROM` | `sales@unfairadvantage.my` | Mail sender address for payment confirmations |
+| `ORDERS_PAYMENT_CONFIRMATION_FROM` | `MAIL_FROM_ADDRESS`, else `''` | Mail sender address for payment confirmations |
 | `ORDERS_PAYMENT_CONFIRMATION_FROM_NAME` | `null` | Mail sender name for payment confirmations |
-| `ORDERS_PAYMENT_CONFIRMATION_EVENT_NAME` | `AI Awakening` | Event name used in the payment confirmation email |
+| `ORDERS_PAYMENT_CONFIRMATION_EVENT_NAME` | `Order Confirmation` | Event name used in the payment confirmation email |
 
-## Full Configuration Example
-
-```php
-<?php
-
-return [
-    'database' => [
-        'tables' => [
-            'orders' => 'orders',
-            'order_items' => 'order_items',
-            'order_payments' => 'order_payments',
-            'order_refunds' => 'order_refunds',
-            'order_notes' => 'order_notes',
-        ],
-    ],
-
-    'currency' => [
-        'default' => 'MYR',
-        'decimal_places' => 2,
-    ],
-
-    'company' => [
-        'address' => env('ORDERS_COMPANY_ADDRESS', ''),
-        'phone' => env('ORDERS_COMPANY_PHONE', ''),
-        'email' => env('ORDERS_COMPANY_EMAIL', ''),
-    ],
-
-    'owner' => [
-        'enabled' => env('ORDERS_OWNER_ENABLED', false),
-        'include_global' => env('ORDERS_OWNER_INCLUDE_GLOBAL', false),
-        'auto_assign_on_create' => env('ORDERS_OWNER_AUTO_ASSIGN_ON_CREATE', true),
-    ],
-
-    'address_snapshots' => [
-        'enabled' => env('ORDERS_ADDRESS_SNAPSHOTS_ENABLED', false),
-    ],
-
-    'status' => [
-        'allowed' => [
-            'created',
-            'pending_payment',
-            'processing',
-        ],
-        'default' => 'created',
-    ],
-
-    'order_number' => [
-        'prefix' => env('ORDERS_ORDER_NUMBER_PREFIX', 'ORD'),
-        'separator' => env('ORDERS_ORDER_NUMBER_SEPARATOR', '-'),
-        'length' => env('ORDERS_ORDER_NUMBER_LENGTH', 8),
-        'use_date' => env('ORDERS_ORDER_NUMBER_USE_DATE', true),
-        'date_format' => env('ORDERS_ORDER_NUMBER_DATE_FORMAT', 'Ymd'),
-    ],
-
-    'invoice' => [
-        'prefix' => env('ORDERS_INVOICE_PREFIX', 'INV'),
-        'separator' => env('ORDERS_INVOICE_SEPARATOR', '-'),
-        'random_length' => env('ORDERS_INVOICE_RANDOM_LENGTH', 6),
-        'date_format' => env('ORDERS_INVOICE_DATE_FORMAT', 'Ymd'),
-    ],
-
-    'integrations' => [
-        'inventory' => ['enabled' => true],
-        'affiliates' => ['enabled' => true],
-        'docs' => [
-            'enabled' => env('ORDERS_INTEGRATIONS_DOCS_ENABLED', false),
-            'generate_pdf' => env('ORDERS_INTEGRATIONS_DOCS_GENERATE_PDF', false),
-        ],
-    ],
-
-    'audit' => [
-        'enabled' => env('ORDERS_AUDIT_ENABLED', true),
-        'threshold' => env('ORDERS_AUDIT_THRESHOLD', 500),
-    ],
-];
-```
+> **info**
+> There is no `orders.status` configuration key. Initial order state is set by the
+> creating code path — see the [State machine](05-state-machine.md) for the
+> transition rules and the [Usage](04-usage.md) examples.

@@ -14,19 +14,31 @@ The canonical orchestration surface is the `Actions` tree. Prefer these over dir
 use AIArmada\Orders\Actions\CreateOrder;
 use AIArmada\Orders\Actions\CreateOrderFromCart;
 
-// Basic creation
-$order = CreateOrder::run([
-    'currency' => 'MYR',
-    'notes' => 'Customer special instructions',
-]);
+// Basic creation — $orderData and $items are both required
+$order = app(CreateOrder::class)->execute(
+    orderData: [
+        'currency' => 'MYR',
+        'notes' => 'Customer special instructions',
+    ],
+    items: [
+        [
+            'name' => 'Product Name',
+            'sku' => 'SKU-001',
+            'quantity' => 2,
+            'unit_price' => 9900, // cents
+        ],
+    ],
+);
 
-// From cart
-use AIArmada\Cart\Models\Cart;
+// From cart — the second argument is the customer Eloquent model
+$cart = app(\AIArmada\Cart\Contracts\CartManagerInterface::class)->getCurrentCart();
 
-$cart = Cart::find($cartId);
-$order = CreateOrderFromCart::run($cart, [
-    'notes' => 'Optional notes',
-]);
+$order = app(CreateOrderFromCart::class)->execute(
+    cart: $cart,
+    customer: $customer,
+    intakeSource: 'checkout',
+    intakeId: $sessionId,
+);
 ```
 
 ### Durable Intake Identity
@@ -37,18 +49,28 @@ Prevent duplicate orders from retries and concurrent submissions using intake id
 use AIArmada\Orders\Actions\CreateOrder;
 
 // Idempotent creation — same intake identity returns the existing order
-$order = CreateOrder::run([
-    'currency' => 'MYR',
-    'subtotal' => 5000,
-    'grand_total' => 5000,
-], intakeSource: 'checkout', intakeId: 'sess_abc123');
+$order = app(CreateOrder::class)->execute(
+    orderData: [
+        'currency' => 'MYR',
+        'subtotal' => 5000,
+        'grand_total' => 5000,
+    ],
+    items: $items,
+    intakeSource: 'checkout',
+    intakeId: 'sess_abc123',
+);
 
 // Exact retry — returns the same order, no duplicate
-$retry = CreateOrder::run([
-    'currency' => 'MYR',
-    'subtotal' => 5000,
-    'grand_total' => 5000,
-], intakeSource: 'checkout', intakeId: 'sess_abc123');
+$retry = app(CreateOrder::class)->execute(
+    orderData: [
+        'currency' => 'MYR',
+        'subtotal' => 5000,
+        'grand_total' => 5000,
+    ],
+    items: $items,
+    intakeSource: 'checkout',
+    intakeId: 'sess_abc123',
+);
 
 assert($retry->id === $order->id); // Same order
 ```
@@ -69,7 +91,7 @@ use AIArmada\Orders\Actions\RegisterOrderPayment;
 use AIArmada\Orders\Actions\RegisterOrderRefund;
 
 // Confirm payment
-RegisterOrderPayment::run(
+app(RegisterOrderPayment::class)->execute(
     order: $order,
     transactionId: 'txn_abc123',
     gateway: 'stripe',
@@ -77,13 +99,17 @@ RegisterOrderPayment::run(
 );
 
 // Process refund
-RegisterOrderRefund::run(
+app(RegisterOrderRefund::class)->execute(
     order: $order,
     amount: 5000, // cents
-    reason: 'Customer requested refund',
     transactionId: 'ref_xyz789',
+    reason: 'Customer requested refund',
 );
 ```
+
+> **info**
+> `RegisterOrderRefund::execute()` declares `amount`, then `transactionId`, then
+> `reason`. Keep that order or use the named arguments shown above.
 
 ### Cancellation & Completion
 
@@ -92,14 +118,14 @@ use AIArmada\Orders\Actions\CancelOrder;
 use AIArmada\Orders\Actions\CompleteOrder;
 
 // Cancel
-CancelOrder::run(
+app(CancelOrder::class)->execute(
     order: $order,
     reason: 'Customer requested cancellation',
-    canceledBy: auth()->id(),
+    canceledBy: (string) auth()->id(),
 );
 
 // Complete (marks as delivered)
-CompleteOrder::run($order);
+app(CompleteOrder::class)->execute($order);
 ```
 
 ### Deleting Orders (Prefer Cancel/Refund)
@@ -157,9 +183,13 @@ $orders = Order::query()
 // Get specific order
 $order = Order::query()
     ->forOwner()
-    ->with(['items', 'billingAddress', 'shippingAddress', 'payments'])
+    ->with(['items', 'payments', 'refunds', 'orderNotes', 'addresses'])
     ->findOrFail($orderId);
 ```
+
+`Order` has no `billingAddress` / `shippingAddress` relations. Use the
+`addresses` relation plus `primaryAddress('billing')` / `primaryAddress('shipping')`
+from the `HasAddresses` trait, or `addressesOfType('billing')`.
 
 ### Check Order State
 
@@ -192,8 +222,8 @@ if ($order->status->isFinal()) {
 
 ```php
 // Format currency values
-echo $order->formattedSubtotal();    // "MYR 99.00"
-echo $order->formattedGrandTotal();  // "MYR 119.00"
+echo $order->getFormattedSubtotal();    // "MYR 99.00"
+echo $order->getFormattedGrandTotal();  // "MYR 119.00"
 
 // Check payment status
 if ($order->isPaid()) {
@@ -322,11 +352,11 @@ use AIArmada\Orders\Actions\GenerateInvoice;
 
 $generator = app(GenerateInvoice::class);
 
-// Get PDF response for download
+// Get a download response (PDF when a PDF runtime is present, HTML fallback otherwise)
 return $generator->download($order);
 
-// Get PDF content as string
-$pdfContent = $generator->generate($order);
+// Or write the rendered document to a path and get the path back
+$path = $generator->save($order, storage_path('app/invoices/'.$order->order_number.'.pdf'));
 ```
 
 Use `GenerateInvoice` for ad-hoc PDF generation and download responses. Use `CreateOrderInvoiceDoc` / `CreateOrderReceiptDoc` when you want persisted Docs records that integrate with the Docs package.
