@@ -139,7 +139,7 @@ packages/orders/
 - PHP 8.4+
 - Laravel 13+
 - `spatie/laravel-model-states` ^2.0
-- `spatie/laravel-pdf` ^2.0 (for invoices)
+- `spatie/laravel-pdf` ^2.13 (for invoices)
 - `aiarmada/commerce-support` (for multi-tenancy)
 
 ## Quick Start
@@ -147,15 +147,13 @@ packages/orders/
 ```php
 use AIArmada\Orders\Services\OrderService;
 
-// Create an order
+// Create an order — $orderData and $items are both required
 $order = app(OrderService::class)->createOrder(
-    [
+    orderData: [
         'currency' => 'MYR',
         'notes' => 'Customer notes',
     ],
-    [
-        ['name' => 'Product Name', 'sku' => 'SKU-001', 'quantity' => 1, 'unit_price' => 9900],
-    ],
+    items: [],
 );
 
 // Add items

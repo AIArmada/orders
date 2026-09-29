@@ -8,37 +8,37 @@ The Orders package uses `spatie/laravel-model-states` for robust order state man
 
 ## State Diagram
 
-```
-              ┌─────────────┐
-              │   Created   │
-              └──────┬──────┘
-                     ▼
-         ┌─────────────────────┐
-         │    PendingPayment   │
-         └──┬───────┬───────┬──┘
-            ▼       ▼       ▼
-     ┌────────────┐ ┌───────────┐ ┌─────────────┐
-     │ Processing │ │ Canceled  │ │PaymentFailed│
-     └─────┬──────┘ │  (final)  │ │   (final)   │
-           ▼        └───────────┘ └─────────────┘
-    ┌────────────┐
-    │  Shipped   │──┐
-    └─────┬──────┘  │ (Shipped → Returned)
-          ▼         ▼
-   ┌─────────────┐ ┌──────────┐
-   │  Delivered  │ │ Returned │──┐
-   └──────┬──────┘ └──────────┘  ▼
-          ▼               ┌────────────┐
-   ┌──────────┐           │  Refunded  │
-   │Completed │──────────▶│  (final)   │
-   │ (final)  │           └────────────┘
-   └──────────┘
-   ┌─────────┐    ┌─────────┐
-   │ OnHold  │    │  Fraud  │
-   └─────────┘    │ (final) │
-   (Processing    └─────────┘
-    ↔ OnHold)
-```
+The authoritative source is `OrderStatus::config()` in
+`packages/orders/src/States/OrderStatus.php`. The default state is `Created`.
+These 21 transitions — and only these — are allowed:
+
+| From | To |
+|------|----|
+| `Created` | `PendingPayment` |
+| `Created` | `Processing` |
+| `PendingPayment` | `Processing` |
+| `PendingPayment` | `Canceled` |
+| `PendingPayment` | `PaymentFailed` |
+| `Processing` | `OnHold` |
+| `Processing` | `Fraud` |
+| `Processing` | `Shipped` |
+| `Processing` | `Completed` |
+| `Processing` | `Canceled` |
+| `Processing` | `Refunded` |
+| `OnHold` | `Processing` |
+| `OnHold` | `Canceled` |
+| `Shipped` | `Delivered` |
+| `Shipped` | `Returned` |
+| `Delivered` | `Completed` |
+| `Delivered` | `Returned` |
+| `Delivered` | `Refunded` |
+| `Completed` | `Refunded` |
+| `Canceled` | `Refunded` |
+| `Returned` | `Refunded` |
+
+Cancellable states are `PendingPayment`, `Processing`, and `OnHold` — there is no
+`Created → Canceled` transition. `Completed`, `Canceled`, `Fraud`, and `PaymentFailed`
+all report `isFinal() === true`. `Completed` and `Canceled` still allow the outbound `→ Refunded` edge; `Fraud` and `PaymentFailed` have no outbound transitions.
 
 The sketch above shows the primary flow. The complete edge list
 (`OrderStatus::config()`) is authoritative:
@@ -57,20 +57,27 @@ Cancelable from: Created, PendingPayment, Processing, OnHold.
 
 ## States
 
-| State | Description | Final | Can Cancel | Can Refund |
-|-------|-------------|-------|------------|------------|
-| `Created` | Initial state | No | Yes | No |
-| `PendingPayment` | Awaiting payment | No | Yes | No |
-| `Processing` | Payment received, preparing | No | Yes | Yes |
-| `Shipped` | Order shipped | No | No | No |
-| `Delivered` | Order delivered | No | No | Yes |
-| `Completed` | Fully completed | Yes | No | Yes |
-| `Canceled` | Order canceled | Yes | No | No |
-| `Refunded` | Fully refunded | Yes | No | No |
-| `Returned` | Items returned | No | No | Yes |
-| `OnHold` | Manual review needed | No | Yes | No |
-| `Fraud` | Fraud detected | Yes | No | No |
-| `PaymentFailed` | Payment failed | Yes | No | No |
+| State | Description | Final | Can Cancel | Can Refund | Can Modify |
+|-------|-------------|-------|------------|------------|------------|
+| `Created` | Initial state (`public static string $name = 'created'`) | No | Yes | No | Yes |
+| `PendingPayment` | Awaiting payment | No | Yes | No | Yes |
+| `Processing` | Payment received, preparing | No | Yes | Yes | No |
+| `Shipped` | Order shipped | No | No | No | No |
+| `Delivered` | Order delivered | No | No | Yes | No |
+| `Completed` | Fully completed | Yes | No | Yes | No |
+| `Canceled` | Order canceled | Yes | No | No | No |
+| `Refunded` | Fully refunded | Yes | No | No | No |
+| `Returned` | Items returned | No | No | Yes | No |
+| `OnHold` | Manual review needed | No | Yes | No | No |
+| `Fraud` | Fraud detected | Yes | No | No | No |
+| `PaymentFailed` | Payment failed | Yes | No | No | No |
+
+Those 12 concrete states are the complete set in `AIArmada\Orders\States`.
+
+> **info**
+> `Created::canCancel()` returns `true`, but `OrderStatus::config()` does not allow
+> `Created → Canceled`, so a transition on a freshly created order throws. Treat
+> `canCancel()` on `Created` as a reporting bug in the package, not a supported flow.
 
 ## State Methods
 
@@ -199,7 +206,7 @@ $order->status->transitionTo(Fraud::class, new OrderFlaggedAsFraud(
 
 ### OrderReturned
 
-`Delivered` → `Returned`
+`Shipped|Delivered` → `Returned`
 
 Records `returned_at` as a historical fact (mirrors `order_items.returned_at` at the order level). A subsequent refund transitions `Returned` → `Refunded`.
 
@@ -214,7 +221,10 @@ $order->status->transitionTo(Returned::class, new OrderReturned(
 
 ### RefundProcessed
 
-`Returned` → `Refunded`
+`Processing|Delivered|Completed|Canceled|Returned → Refunded`
+
+`OrderServiceInterface::processRefund()` is documented for the returned-items path, but
+the transition itself is allowed from every one of those source states.
 
 ```php
 use AIArmada\Orders\Transitions\RefundProcessed;
@@ -225,6 +235,50 @@ $order->status->transitionTo(Refunded::class, new RefundProcessed(
     reason: 'Items returned',
     transactionId: 'ref_789',
 ));
+```
+
+### PaymentFailed
+
+`PendingPayment → PaymentFailed`
+
+Marks the pending `OrderPayment` as failed and records `payment_failed_at`.
+
+```php
+use AIArmada\Orders\Transitions\PaymentFailed as PaymentFailedTransition;
+
+$order->status->transitionTo(PaymentFailed::class, new PaymentFailedTransition(
+    $order,
+    reason: 'Card declined',
+));
+```
+
+> **warning**
+> The `PaymentFailed` *transition* class shares its short name with the
+> `AIArmada\Orders\States\PaymentFailed` *state* class. Alias one of them when both are
+> in scope, as the package does internally (`PaymentFailedState`).
+
+### OrderCompleted
+
+`Processing|Delivered → Completed`
+
+The no-shipping path for digital goods and admissions. Records `completed_at`.
+
+```php
+use AIArmada\Orders\Transitions\OrderCompleted;
+
+$order->status->transitionTo(Completed::class, new OrderCompleted($order));
+```
+
+### RefundCompleted
+
+Takes an `OrderRefund` (not an `Order`) and only completes a refund already in
+`RefundStatus::Pending`:
+
+```php
+use AIArmada\Orders\Transitions\RefundCompleted;
+
+// handle() takes no arguments — the refund is passed to the constructor
+$order = (new RefundCompleted($refund, 'ref_789'))->handle();
 ```
 
 ## Using OrderService
@@ -240,8 +294,12 @@ $service = app(OrderServiceInterface::class);
 $service->confirmPayment($order, 'txn_123', 'stripe', 9900);
 $service->ship($order, 'DHL', 'DHL123');
 $service->confirmDelivery($order);
+$service->complete($order);
 $service->cancel($order, 'Customer requested', auth()->id());
-$service->processRefund($order, 5000, 'ref_456', 'Returned items');
+
+// processRefund() takes transactionId as the 3rd argument and reason as the 4th.
+// Both are required — a 3-argument call is an ArgumentCountError.
+$service->processRefund($order, 5000, 'ref_789', 'Returned items');
 ```
 
 ## Custom State Logic
@@ -281,24 +339,45 @@ final class AwaitingPickup extends OrderStatus
 
 ### Registering Custom States
 
-States are registered centrally in `AIArmada\Orders\States\OrderStatus::config()`,
-which is `final`. The package does not offer a runtime hook for adding states:
-to introduce one, extend the `OrderStatus` hierarchy in a fork or package
-override and register the new state plus its edges on the `StateConfig`:
+> **warning**
+> The state set is closed. `OrderStatus::config()` is declared `final`, and `Order` binds the field with `casts()` → `'status' => OrderStatus::class` — it does not override `registerStates()`. A subclass that calls `$this->addState(...)` after `parent::registerStates()` cannot compile, and calling `allowTransition()` on the final config throws.
+
+Subclassing `OrderStatus` therefore produces a state that is **never reachable**:
 
 ```php
-use AIArmada\Orders\States\OrderStatus;
-use Spatie\ModelStates\StateConfig;
+// Compiles fine, but `status = 'awaiting_pickup'` is rejected — the field
+// casts to OrderStatus::class, which resolves only the 12 shipped states.
+final class AwaitingPickup extends OrderStatus
+{
+    public static string $name = 'awaiting_pickup';
 
-OrderStatus::config()
-    ->registerState(AwaitingPickup::class)
-    ->allowTransition(Processing::class, AwaitingPickup::class)
-    ->allowTransition(AwaitingPickup::class, Delivered::class);
+    public function color(): string
+    {
+        return 'info';
+    }
+
+    public function icon(): string
+    {
+        return 'heroicon-o-building-storefront';
+    }
+
+    public function label(): string
+    {
+        return 'Awaiting Pickup';
+    }
+
+    public function canCancel(): bool
+    {
+        return true;
+    }
+}
 ```
 
-Note that `OrderStatus::config()` builds a fresh `StateConfig` on every call,
-so registrations must live in the state class itself — there is no
-model-level `registerStates()` hook in this package.
+To ship a new lifecycle state you must change the package: drop the `final` on
+`OrderStatus::config()`, add the `allowTransition()` edges, and point the `status` cast
+at a state base class that knows about the new state. Custom presentation of the existing
+states (label, color, icon, capabilities) needs no code change at all — the twelve state
+classes are not final.
 
 ## Querying by State
 
