@@ -10,6 +10,7 @@ use AIArmada\Orders\Events\OrderRefunded;
 use AIArmada\Orders\Models\Order;
 use AIArmada\Orders\Models\OrderRefund;
 use AIArmada\Orders\States\Refunded;
+use AIArmada\Orders\Support\OrderOutbox;
 use AIArmada\Orders\Support\RefundAllocationValidator;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
@@ -88,6 +89,11 @@ final class RefundCompleted extends Transition
                 }
 
                 $order->refunded_at ??= CarbonImmutable::now();
+
+                // A fully refunded order unwinds: fulfillment staged but
+                // never relayed must not dispatch after the fact. Partial
+                // refunds leave the status (and staged rows) untouched.
+                OrderOutbox::suppressForOrder($order->getKey(), 'Order fully refunded; fulfillment suppressed.');
             }
 
             $order->save();

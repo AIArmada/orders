@@ -14,31 +14,22 @@ The canonical orchestration surface is the `Actions` tree. Prefer these over dir
 use AIArmada\Orders\Actions\CreateOrder;
 use AIArmada\Orders\Actions\CreateOrderFromCart;
 
-// Basic creation — $orderData and $items are both required
+// Basic creation
 $order = app(CreateOrder::class)->execute(
-    orderData: [
+    [
         'currency' => 'MYR',
         'notes' => 'Customer special instructions',
     ],
-    items: [
-        [
-            'name' => 'Product Name',
-            'sku' => 'SKU-001',
-            'quantity' => 2,
-            'unit_price' => 9900, // cents
-        ],
+    [
+        ['name' => 'Product Name', 'sku' => 'SKU-001', 'quantity' => 2, 'unit_price' => 9900],
     ],
 );
 
-// From cart — the second argument is the customer Eloquent model
-$cart = app(\AIArmada\Cart\Contracts\CartManagerInterface::class)->getCurrentCart();
+// From cart
+use AIArmada\Cart\Facades\Cart;
 
-$order = app(CreateOrderFromCart::class)->execute(
-    cart: $cart,
-    customer: $customer,
-    intakeSource: 'checkout',
-    intakeId: $sessionId,
-);
+$cart = Cart::getById($cartId);
+$order = app(CreateOrderFromCart::class)->execute($cart, $customer);
 ```
 
 ### Durable Intake Identity
@@ -49,28 +40,18 @@ Prevent duplicate orders from retries and concurrent submissions using intake id
 use AIArmada\Orders\Actions\CreateOrder;
 
 // Idempotent creation — same intake identity returns the existing order
-$order = app(CreateOrder::class)->execute(
-    orderData: [
-        'currency' => 'MYR',
-        'subtotal' => 5000,
-        'grand_total' => 5000,
-    ],
-    items: $items,
-    intakeSource: 'checkout',
-    intakeId: 'sess_abc123',
-);
+$order = app(CreateOrder::class)->execute([
+    'currency' => 'MYR',
+    'subtotal' => 5000,
+    'grand_total' => 5000,
+], [], intakeSource: 'checkout', intakeId: 'sess_abc123');
 
 // Exact retry — returns the same order, no duplicate
-$retry = app(CreateOrder::class)->execute(
-    orderData: [
-        'currency' => 'MYR',
-        'subtotal' => 5000,
-        'grand_total' => 5000,
-    ],
-    items: $items,
-    intakeSource: 'checkout',
-    intakeId: 'sess_abc123',
-);
+$retry = app(CreateOrder::class)->execute([
+    'currency' => 'MYR',
+    'subtotal' => 5000,
+    'grand_total' => 5000,
+], [], intakeSource: 'checkout', intakeId: 'sess_abc123');
 
 assert($retry->id === $order->id); // Same order
 ```
@@ -107,10 +88,6 @@ app(RegisterOrderRefund::class)->execute(
 );
 ```
 
-> **info**
-> `RegisterOrderRefund::execute()` declares `amount`, then `transactionId`, then
-> `reason`. Keep that order or use the named arguments shown above.
-
 ### Cancellation & Completion
 
 ```php
@@ -121,10 +98,10 @@ use AIArmada\Orders\Actions\CompleteOrder;
 app(CancelOrder::class)->execute(
     order: $order,
     reason: 'Customer requested cancellation',
-    canceledBy: (string) auth()->id(),
+    canceledBy: auth()->id(),
 );
 
-// Complete (marks as delivered)
+// Complete (marks as completed)
 app(CompleteOrder::class)->execute($order);
 ```
 
@@ -160,11 +137,23 @@ Available through the service:
 |--------|-------------|
 | `createOrder()` | `CreateOrder` |
 | `createFromCart()` | `CreateOrderFromCart` |
-| `cancel()` | `CancelOrder` |
+| `cancel()` | `OrderCanceled` transition |
 | `confirmPayment()` | `RegisterOrderPayment` |
+| `confirmFreeOrder()` | `FreeOrderConfirmed` transition |
 | `processRefund()` | `RegisterOrderRefund` |
-| `ship()` | Via `OrderHandlerRegistrar` |
-| `confirmDelivery()` | `CompleteOrder` |
+| `ship()` | `ShipmentCreated` transition |
+| `confirmDelivery()` | `DeliveryConfirmed` transition |
+| `complete()` | `OrderCompleted` transition |
+
+### Confirming free orders
+
+```php
+use AIArmada\Orders\Contracts\OrderServiceInterface;
+
+$order = $orderService->confirmFreeOrder($order); // Created/PendingPayment → Processing
+```
+
+Use this only for orders with `grand_total <= 0` and `paid_total === 0`. Paid, partially paid, and balance-owing Processing orders are rejected with `InvalidArgumentException`; held, canceled, or failed orders throw the `OrderNotAwaitingPayment` subclass. On success the order moves to Processing and stock deduction is scheduled after commit; no payment record, `paid_at`, or `OrderPaid` event is produced. See the [state machine](05-state-machine.md) for the full contract and known limitations.
 
 ## Working with Models Directly
 
@@ -183,13 +172,9 @@ $orders = Order::query()
 // Get specific order
 $order = Order::query()
     ->forOwner()
-    ->with(['items', 'payments', 'refunds', 'orderNotes', 'addresses'])
+    ->with(['items', 'addresses', 'payments'])
     ->findOrFail($orderId);
 ```
-
-`Order` has no `billingAddress` / `shippingAddress` relations. Use the
-`addresses` relation plus `primaryAddress('billing')` / `primaryAddress('shipping')`
-from the `HasAddresses` trait, or `addressesOfType('billing')`.
 
 ### Check Order State
 
@@ -241,7 +226,7 @@ if ($order->isFullyPaid()) {
 
 ## Fulfillment & Addresses
 
-Orders are carrier-agnostic: pass an explicit carrier string to `ship()` — no carrier is hardcoded. Fulfillment resolves through the `AIArmada\Orders\Contracts\FulfillmentHandler` contract registered via `AIArmada\Orders\Support\OrderHandlerRegistrar` (the shipping package auto-registers its handler when installed).
+Orders are carrier-agnostic: pass an explicit carrier string to `ship()` — no carrier is hardcoded. `ship()` runs the `ShipmentCreated` transition, which records the carrier and tracking number in order metadata. Carrier API operations go through the `AIArmada\Orders\Contracts\FulfillmentHandler` contract, which the shipping package binds in the container when installed.
 
 ```php
 use AIArmada\Orders\Services\OrderService;
@@ -266,7 +251,7 @@ The package dispatches events during order lifecycle:
 | `OrderCanceled` | Order was canceled |
 | `OrderRefunded` | Refund was processed |
 | `OrderPaymentFailed` | Payment attempt failed |
-| `InventoryDeductionRequired` | Inventory reservation needed |
+| `InventoryDeductionRequired` | Inventory deduction needed |
 | `InventoryReleaseRequired` | Inventory release needed |
 | `CommissionAttributionRequired` | Commission attribution needed |
 
@@ -300,6 +285,34 @@ class SendOrderConfirmation
     }
 }
 ```
+
+## Outbox (Relay & Sweep)
+
+`PaymentConfirmed` and `FreeOrderConfirmed` stage one outbox row per replayable event in the same transaction as the state change. The live after-commit dispatch marks rows relayed; anything it misses (crash between commit and dispatch) is recovered by the relay. Delivery is at-least-once, so every consumer of the replayable events is idempotent: inventory deduction, pass issuance, event registration sync, promotion usage counting, and commission attribution.
+
+Run the relay frequently (every minute) and the sweep less often (hourly):
+
+```php
+// routes/console.php
+use AIArmada\Orders\Actions\Outbox\RelayOrderOutbox;
+use AIArmada\Orders\Actions\Outbox\SweepOrderOutbox;
+
+Schedule::command(RelayOrderOutbox::class)->everyMinute();
+Schedule::command(SweepOrderOutbox::class)->hourly();
+```
+
+Or run them directly:
+
+```bash
+php artisan orders:outbox-relay --limit=100
+php artisan orders:outbox-sweep
+```
+
+Both entrypoints are [Laravel Actions](https://www.laravelactions.com/): call `RelayOrderOutbox::run()` / `SweepOrderOutbox::run()` from code to get result counts, or run the artisan signatures above (same class, command entrypoint).
+
+The sweep requeues rows stuck in `relaying` past the claim timeout, purges `relayed` history past retention, and reports `dead` rows. Dead rows need operator review — the sweep never repairs or invents rows.
+
+Lifecycle suppression: cancelling an order, completing a full refund, or flagging it as fraud terminally suppresses that order's unrelayed rows in the same transaction (`suppressed`, with the reason in `last_error`), so replay can never fulfill after cancel/refund cleanup ran or while an order is under investigation. Partial refunds leave staged rows untouched. The relay additionally re-validates the order lifecycle under a row lock after claiming each row and holds that lock through dispatch, so a cancel landing mid-relay either suppresses first or cleans up after — replay can never overtake cleanup. Suppressed rows are terminal and need no operator review.
 
 ## Order Documents
 
@@ -352,11 +365,11 @@ use AIArmada\Orders\Actions\GenerateInvoice;
 
 $generator = app(GenerateInvoice::class);
 
-// Get a download response (PDF when a PDF runtime is present, HTML fallback otherwise)
+// Get PDF response for download
 return $generator->download($order);
 
-// Or write the rendered document to a path and get the path back
-$path = $generator->save($order, storage_path('app/invoices/'.$order->order_number.'.pdf'));
+// Save PDF to disk
+$path = $generator->save($order, storage_path('app/invoices/order.pdf'));
 ```
 
 Use `GenerateInvoice` for ad-hoc PDF generation and download responses. Use `CreateOrderInvoiceDoc` / `CreateOrderReceiptDoc` when you want persisted Docs records that integrate with the Docs package.

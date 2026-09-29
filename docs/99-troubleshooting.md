@@ -29,10 +29,10 @@ dump(OwnerContext::resolve()); // Should return current tenant/owner
 **Solution**: Check allowed transitions for the current state:
 
 ```php
-use AIArmada\Orders\States\Processing;
+use AIArmada\Orders\States\OrderStatus;
 
 // Check current state
-echo $order->status::class; // e.g., AIArmada\Orders\States\PendingPayment
+echo get_class($order->status); // e.g., "PendingPayment"
 
 // See what transitions are allowed
 if ($order->status->canTransitionTo(Processing::class)) {
@@ -125,14 +125,9 @@ foreach ($stuck as $order) {
 $orders = Order::with([
     'items',
     'payments',
-    'refunds',
-    'orderNotes',
     'addresses',
 ])->paginate();
 ```
-
-`Order` has no `billingAddress` / `shippingAddress` relations — eager-load
-`addresses` and read the typed copy with `primaryAddress('billing')`.
 
 ### Cache expensive queries
 
@@ -180,12 +175,10 @@ dd(DB::getQueryLog());
 ### Check state machine configuration
 
 ```php
-use AIArmada\Orders\Models\Order;
+use AIArmada\Orders\States\OrderStatus;
 
-$order = new Order();
-
-// Get all registered states
-$config = $order->getStateConfig('status');
+// Get the state config with all registered states and transitions
+$config = OrderStatus::config();
 dump($config);
 ```
 

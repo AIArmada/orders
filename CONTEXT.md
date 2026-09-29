@@ -38,12 +38,12 @@ keywords:
 ## Decide fast
 - Use when: Order lifecycle or money movement on orders.
 - Skip when: Checkout orchestration — see checkout; admin UI — see filament-orders.
-- Owner/security: Owner-scoped (all 5 models).
+- Owner/security: Owner-scoped (all 6 models).
 
 ## Key surfaces
-- Models: `Order`, `OrderItem`, `OrderNote`, `OrderPayment`, `OrderRefund`
+- Models: `Order`, `OrderItem`, `OrderNote`, `OrderOutboxMessage`, `OrderPayment`, `OrderRefund`
 - Actions/Services: `Actions/CancelOrder`, `Actions/CompleteOrder`, `Actions/Concerns/AssertsOrderOwnerBoundary`, `Actions/Concerns/BuildsOrderDocs`, `Actions/Concerns/BuildsOrderPdf`, `Actions/CreateOrder`, `Actions/CreateOrderFromCart`, `Actions/CreateOrderInvoiceDoc`
-- Config `orders.php`: `database`, `json_column_type`, `tables`, `orders`, `order_items`, `order_payments`, `order_refunds`, `order_notes`, `currency`
+- Config `orders.php`: `database`, `currency`, `company`, `owner`, `address_snapshots`, `order_number`, `invoice`, `integrations`, `audit`, `notifications`, `outbox`
 
 ## Docs map
 - Start: `01-overview` → `03-configuration` → `04-usage` → `99-troubleshooting`

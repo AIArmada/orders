@@ -12,6 +12,7 @@ return [
             'order_payments' => 'order_payments',
             'order_refunds' => 'order_refunds',
             'order_notes' => 'order_notes',
+            'order_outbox' => 'order_outbox_messages',
         ],
     ],
 
@@ -52,6 +53,17 @@ return [
         'separator' => env('ORDERS_INVOICE_SEPARATOR', '-'),
         'random_length' => env('ORDERS_INVOICE_RANDOM_LENGTH', 6),
         'date_format' => env('ORDERS_INVOICE_DATE_FORMAT', 'Ymd'),
+    ],
+
+    'outbox' => [
+        'enabled' => env('ORDERS_OUTBOX_ENABLED', true),
+        'relay_grace_seconds' => env('ORDERS_OUTBOX_RELAY_GRACE_SECONDS', 60),
+        'batch_limit' => env('ORDERS_OUTBOX_BATCH_LIMIT', 100),
+        'max_attempts' => env('ORDERS_OUTBOX_MAX_ATTEMPTS', 10),
+        'retry_base_seconds' => env('ORDERS_OUTBOX_RETRY_BASE_SECONDS', 60),
+        'retry_max_seconds' => env('ORDERS_OUTBOX_RETRY_MAX_SECONDS', 3600),
+        'claim_timeout_seconds' => env('ORDERS_OUTBOX_CLAIM_TIMEOUT_SECONDS', 600),
+        'retention_days' => env('ORDERS_OUTBOX_RETENTION_DAYS', 30),
     ],
 
     /* Integrations */

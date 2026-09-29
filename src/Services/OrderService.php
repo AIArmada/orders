@@ -16,6 +16,7 @@ use AIArmada\Orders\Models\Order;
 use AIArmada\Orders\Models\OrderItem;
 use AIArmada\Orders\Models\OrderRefund;
 use AIArmada\Orders\Transitions\DeliveryConfirmed;
+use AIArmada\Orders\Transitions\FreeOrderConfirmed;
 use AIArmada\Orders\Transitions\OrderCanceled;
 use AIArmada\Orders\Transitions\OrderCompleted;
 use AIArmada\Orders\Transitions\ShipmentCreated;
@@ -100,6 +101,13 @@ final class OrderService implements OrderServiceInterface
         $this->assertOwnerBoundaryForMutation($order, __METHOD__);
 
         return $this->registerOrderPayment->execute($order, $transactionId, $gateway, $amount, $metadata);
+    }
+
+    public function confirmFreeOrder(Order $order): Order
+    {
+        $this->assertOwnerBoundaryForMutation($order, __METHOD__);
+
+        return (new FreeOrderConfirmed($order))->handle();
     }
 
     public function ship(

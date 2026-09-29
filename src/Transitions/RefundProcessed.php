@@ -9,6 +9,7 @@ use AIArmada\Orders\Enums\RefundStatus;
 use AIArmada\Orders\Events\OrderRefunded;
 use AIArmada\Orders\Models\Order;
 use AIArmada\Orders\States\Refunded;
+use AIArmada\Orders\Support\OrderOutbox;
 use AIArmada\Orders\Support\RefundAllocationValidator;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
@@ -93,6 +94,11 @@ final class RefundProcessed extends Transition
 
                 $this->order->refunded_at = $now;
                 $this->order->status->transitionTo(Refunded::class);
+
+                // Same terminal marking as cancel and completed refunds:
+                // unrelayed fulfillment must not dispatch after a full
+                // refund. Partial refunds leave staged rows untouched.
+                OrderOutbox::suppressForOrder($this->order->getKey(), 'Order fully refunded; fulfillment suppressed.');
             }
 
             $this->order->save();

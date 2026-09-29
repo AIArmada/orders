@@ -10,6 +10,7 @@ use AIArmada\Orders\Events\OrderCanceled as OrderCanceledEvent;
 use AIArmada\Orders\Events\OrderCancelInitiated;
 use AIArmada\Orders\Models\Order;
 use AIArmada\Orders\States\Canceled;
+use AIArmada\Orders\Support\OrderOutbox;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Spatie\ModelStates\Transition;
@@ -52,6 +53,13 @@ final class OrderCanceled extends Transition
             if ($this->issueRefund && $this->order->isPaid()) {
                 $this->initiateRefund();
             }
+
+            // Fulfillment staged but never relayed must not dispatch
+            // after cancel cleanup ran: suppress it atomically with the
+            // cancellation. Rows the relay already claimed are
+            // re-validated against the order lifecycle under lock before
+            // dispatch (see RelayOrderOutbox).
+            OrderOutbox::suppressForOrder($this->order->getKey(), 'Order cancelled; fulfillment suppressed.');
 
             $order = $this->order;
             $reason = $this->reason;

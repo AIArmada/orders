@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace AIArmada\Orders;
 
 use AIArmada\Docs\Contracts\DocServiceInterface;
+use AIArmada\Orders\Actions\Outbox\RelayOrderOutbox;
+use AIArmada\Orders\Actions\Outbox\SweepOrderOutbox;
 use AIArmada\Orders\Contracts\OrderServiceInterface;
 use AIArmada\Orders\Notifications\PaymentConfirmationNotification;
 use AIArmada\Orders\Services\OrderService;
@@ -24,6 +26,10 @@ final class OrdersServiceProvider extends PackageServiceProvider
             ->hasConfigFile()
             ->hasTranslations()
             ->hasViews()
+            ->hasCommands([
+                RelayOrderOutbox::class,
+                SweepOrderOutbox::class,
+            ])
             ->runsMigrations()
             ->discoversMigrations();
     }
@@ -93,5 +99,9 @@ final class OrdersServiceProvider extends PackageServiceProvider
             $dispatcher->listen(Events\OrderProcessingStarted::class, Listeners\DeductInventoryOnPaymentConfirmed::class);
             $dispatcher->listen(Events\OrderCancelInitiated::class, Listeners\ReleaseInventoryOnOrderCanceled::class);
         }
+
+        // Registered unconditionally: the affiliates toggle is evaluated at
+        // handle time, preserving the previous inline-call semantics.
+        $dispatcher->listen(Events\OrderFulfillmentRequired::class, Listeners\AttributeCommissionOnFulfillment::class);
     }
 }

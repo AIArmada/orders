@@ -5,12 +5,13 @@ declare(strict_types=1);
 namespace AIArmada\Orders\Transitions;
 
 use AIArmada\Orders\Enums\PaymentStatus;
-use AIArmada\Orders\Events\CommissionAttributionRequired;
+use AIArmada\Orders\Events\OrderFulfillmentRequired;
 use AIArmada\Orders\Events\OrderPaid;
 use AIArmada\Orders\Events\OrderProcessingStarted;
 use AIArmada\Orders\Models\Order;
 use AIArmada\Orders\Models\OrderPayment;
 use AIArmada\Orders\States\Processing;
+use AIArmada\Orders\Support\OrderOutbox;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
@@ -99,11 +100,6 @@ final class PaymentConfirmed extends Transition
             // save below cannot clobber it with stale in-memory attributes.
             $this->order->refresh();
 
-            // Attribute affiliate commission (if package present)
-            if (config('orders.integrations.affiliates.enabled', true)) {
-                $this->attributeCommission();
-            }
-
             // Update order state and paid timestamp
             $this->order->status->transitionTo(Processing::class);
             $this->order->paid_at = CarbonImmutable::now();
@@ -111,14 +107,28 @@ final class PaymentConfirmed extends Transition
 
             $this->syncOriginalOrder($originalOrder);
 
+            // Stage outbox rows in-transaction so a crash between commit and
+            // dispatch stays recoverable. OrderPaid is not staged: invoice
+            // creation and payment emails are not replayable.
+            $outboxIds = [
+                OrderOutbox::stage($this->order, OrderProcessingStarted::class, $this->transactionId, $this->gateway),
+                OrderOutbox::stage($this->order, OrderFulfillmentRequired::class, $this->transactionId, $this->gateway),
+            ];
+
             // Dispatch events only after the outer transaction commits
             $order = $this->order;
             $transactionId = $this->transactionId;
             $gateway = $this->gateway;
 
-            DB::afterCommit(function () use ($order, $transactionId, $gateway): void {
+            DB::afterCommit(function () use ($order, $transactionId, $gateway, $outboxIds): void {
+                // The payment really happened: its non-replayable event
+                // fires regardless of later lifecycle changes.
                 event(new OrderPaid($order, $transactionId, $gateway));
-                event(new OrderProcessingStarted($order, $transactionId, $gateway));
+
+                OrderOutbox::dispatchReplayable($order, $outboxIds, static function () use ($order, $transactionId, $gateway): void {
+                    event(new OrderProcessingStarted($order, $transactionId, $gateway));
+                    event(new OrderFulfillmentRequired($order, $transactionId, $gateway));
+                });
             });
 
             return $originalOrder;
@@ -156,13 +166,5 @@ final class PaymentConfirmed extends Transition
         $originalOrder->setRawAttributes($this->order->getAttributes());
         $originalOrder->setRelations($this->order->getRelations());
         $originalOrder->syncOriginal();
-    }
-
-    /**
-     * Attribute affiliate commission.
-     */
-    protected function attributeCommission(): void
-    {
-        event(new CommissionAttributionRequired($this->order));
     }
 }

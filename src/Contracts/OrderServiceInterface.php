@@ -87,6 +87,15 @@ interface OrderServiceInterface
     ): Order;
 
     /**
+     * Confirm a free order (grand_total <= 0 and paid_total === 0) without payment.
+     *
+     * Moves the order to processing and triggers post-processing
+     * integrations such as inventory deduction. No payment record,
+     * paid timestamp, or OrderPaid event is produced.
+     */
+    public function confirmFreeOrder(Order $order): Order;
+
+    /**
      * Mark order as shipped.
      *
      * @param  array<string, mixed>  $metadata
