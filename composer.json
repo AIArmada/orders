@@ -22,7 +22,7 @@
     "aiarmada/commerce-support": "self.version",
     "spatie/browsershot": "^5.4.0",
     "spatie/laravel-pdf": "^2.13.1",
-    "php": "^8.4"
+    "php": "^8.5"
   },
   "autoload": {
     "psr-4": {

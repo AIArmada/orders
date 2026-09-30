@@ -136,7 +136,7 @@ packages/orders/
 
 ## Requirements
 
-- PHP 8.4+
+- PHP 8.5+
 - Laravel 13+
 - `spatie/laravel-model-states` ^2.0
 - `spatie/laravel-pdf` ^2.13 (for invoices)
