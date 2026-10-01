@@ -106,14 +106,16 @@ final class GenerateInvoice
      */
     private function documentData(Order $order): array
     {
-        return [
-            'invoiceNumber' => $this->resolveInvoiceNumber($order),
-            'invoiceDate' => CarbonImmutable::now(),
-            'documentTitle' => 'Invoice',
-            'documentNumberLabel' => 'Invoice No:',
-            'documentDateLabel' => 'Invoice Date:',
-            'documentFooterGreeting' => 'Thank you for your business!',
-            'documentFooterNote' => 'For questions about this invoice, please contact us.',
-        ];
+        return $this->runWithinOrderOwnerScope($order, function () use ($order): array {
+            return [
+                'invoiceNumber' => $this->resolveInvoiceNumber($order),
+                'invoiceDate' => CarbonImmutable::now(),
+                'documentTitle' => 'Invoice',
+                'documentNumberLabel' => 'Invoice No:',
+                'documentDateLabel' => 'Invoice Date:',
+                'documentFooterGreeting' => 'Thank you for your business!',
+                'documentFooterNote' => 'For questions about this invoice, please contact us.',
+            ];
+        });
     }
 }

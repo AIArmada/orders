@@ -525,7 +525,10 @@ class Order extends Model implements Auditable
      */
     public function routeNotificationForMail(Notification $notification): array | string | null
     {
-        $address = $this->primaryAddress('billing') ?? $this->primaryAddress('shipping');
+        $address = OwnerContext::withOwner(
+            OwnerContext::fromTypeAndId($this->owner_type, $this->owner_id),
+            fn (): ?Address => $this->primaryAddress('billing') ?? $this->primaryAddress('shipping'),
+        );
 
         if ($address === null) {
             return null;

@@ -218,12 +218,14 @@ trait BuildsOrderDocs
      */
     private function orderViewData(Order $order, array $data): array
     {
-        return array_merge([
-            'order' => $order,
-            'items' => $order->items,
-            'billing' => $order->primaryAddress('billing'),
-            'shipping' => $order->primaryAddress('shipping'),
-            'payments' => $order->payments()->where('status', 'completed')->get(),
-        ], $data);
+        return $this->runWithinOrderOwnerScope($order, function () use ($order, $data): array {
+            return array_merge([
+                'order' => $order,
+                'items' => $order->items,
+                'billing' => $order->primaryAddress('billing'),
+                'shipping' => $order->primaryAddress('shipping'),
+                'payments' => $order->payments()->where('status', 'completed')->get(),
+            ], $data);
+        });
     }
 }
