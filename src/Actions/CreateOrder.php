@@ -382,8 +382,10 @@ final class CreateOrder
             'google_maps_url',
             'waze_url',
             'navigation_links',
-            'provider',
-            'provider_place_id',
+            'google_place_id',
+            'google_feature_id',
+            'google_cid',
+            'google_entity_id',
         ])));
     }
 
@@ -469,8 +471,10 @@ final class CreateOrder
                 'google_maps_url',
                 'waze_url',
                 'navigation_links',
-                'provider',
-                'provider_place_id',
+                'google_place_id',
+                'google_feature_id',
+                'google_cid',
+                'google_entity_id',
             ])),
             'country_code' => mb_strtoupper($country),
             'metadata' => $metadata,
