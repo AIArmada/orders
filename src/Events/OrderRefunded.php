@@ -21,6 +21,7 @@ final class OrderRefunded
         public Order $order,
         public int $amount,
         public string $reason,
+        public string $refundId,
         /** @var array<string, mixed> */
         public array $metadata = [],
     ) {

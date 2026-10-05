@@ -98,7 +98,7 @@ final class RefundCompleted extends Transition
 
             $order->save();
 
-            event(new OrderRefunded($order, $amount, $refund->reason, $metadata));
+            event(new OrderRefunded($order, $amount, $refund->reason, (string) $refund->getKey(), $metadata));
 
             return $order;
         });

@@ -21,6 +21,7 @@ final class OrderPaid
         public Order $order,
         public string $transactionId,
         public string $gateway,
+        public int $amount,
     ) {
         $this->hydrateOrderOwnerTuple($order);
     }

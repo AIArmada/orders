@@ -307,7 +307,8 @@ class SendOrderConfirmation
         $order = $event->order;
         $transactionId = $event->transactionId;
         $gateway = $event->gateway;
-        
+        $amount = $event->amount;
+
         // Send confirmation email
     }
 }

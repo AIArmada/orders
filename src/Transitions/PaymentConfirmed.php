@@ -119,11 +119,12 @@ final class PaymentConfirmed extends Transition
             $order = $this->order;
             $transactionId = $this->transactionId;
             $gateway = $this->gateway;
+            $amount = $this->amount;
 
-            DB::afterCommit(function () use ($order, $transactionId, $gateway, $outboxIds): void {
+            DB::afterCommit(function () use ($order, $transactionId, $gateway, $amount, $outboxIds): void {
                 // The payment really happened: its non-replayable event
                 // fires regardless of later lifecycle changes.
-                event(new OrderPaid($order, $transactionId, $gateway));
+                event(new OrderPaid($order, $transactionId, $gateway, $amount));
 
                 OrderOutbox::dispatchReplayable($order, $outboxIds, static function () use ($order, $transactionId, $gateway): void {
                     event(new OrderProcessingStarted($order, $transactionId, $gateway));

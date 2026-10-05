@@ -104,7 +104,7 @@ final class RefundProcessed extends Transition
             $this->order->save();
 
             // Dispatch event
-            event(new OrderRefunded($this->order, $this->amount, $this->reason, $this->metadata));
+            event(new OrderRefunded($this->order, $this->amount, $this->reason, (string) $refund->getKey(), $this->metadata));
 
             return $this->order;
         });

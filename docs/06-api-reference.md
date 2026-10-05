@@ -404,10 +404,13 @@ interface PaymentHandler
 
 ## Events
 
+> **warning**
+> Breaking contract: custom `OrderPaid` producers must supply the actual payment amount in integer minor units, and custom `OrderRefunded` producers must supply the actual persisted refund id. There is no guessed timestamp/amount identity and no compatibility fallback; update custom producers to pass these values explicitly.
+
 | Event | Properties |
 |-------|------------|
 | `OrderCreated` | `Order $order` |
-| `OrderPaid` | `Order $order`, `string $transactionId`, `string $gateway` |
+| `OrderPaid` | `Order $order`, `string $transactionId`, `string $gateway`, `int $amount` |
 | `OrderProcessingStarted` | `Order $order`, `string $transactionId`, `string $gateway` |
 | `OrderShipped` | `Order $order`, `string $carrier`, `string $trackingNumber`, `?string $shipmentId` |
 | `OrderDelivered` | `Order $order` |
@@ -418,6 +421,6 @@ interface PaymentHandler
 | `OrderHoldReleased` | `Order $order`, `?string $reason`, `?string $releasedBy` |
 | `OrderFlaggedAsFraud` | `Order $order`, `string $reason`, `?string $flaggedBy` |
 | `OrderReturned` | `Order $order`, `?string $reason`, `?string $returnedBy` |
-| `OrderRefunded` | `Order $order`, `int $amount`, `string $reason`, `array $metadata` |
+| `OrderRefunded` | `Order $order`, `int $amount`, `string $reason`, `string $refundId`, `array $metadata` |
 | `OrderRefundFailed` | `Order $order`, `OrderRefund $refund`, `string $reason`, `array $metadata` |
 | `OrderPaymentFailed` | `Order $order`, `string $reason` |
