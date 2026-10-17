@@ -158,7 +158,7 @@ final class PaymentConfirmed extends Transition
     {
         $sqlState = (string) $e->getPrevious()?->getCode();
 
-        // 23000 = MySQL integrity violation, 23505 = PostgreSQL unique violation
+        // 23000 is a generic integrity violation; 23505 is PostgreSQL unique violation.
         return $sqlState === '23000' || $sqlState === '23505';
     }
 
