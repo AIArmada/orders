@@ -57,20 +57,20 @@ Cancelable from: Created, PendingPayment, Processing, OnHold.
 
 ## States
 
-| State | Description | Final | Can Cancel | Can Refund | Can Modify |
-|-------|-------------|-------|------------|------------|------------|
-| `Created` | Initial state (`public static string $name = 'created'`) | No | Yes | No | Yes |
-| `PendingPayment` | Awaiting payment | No | Yes | No | Yes |
-| `Processing` | Payment received, preparing | No | Yes | Yes | No |
-| `Shipped` | Order shipped | No | No | No | No |
-| `Delivered` | Order delivered | No | No | Yes | No |
-| `Completed` | Fully completed | Yes | No | Yes | No |
-| `Canceled` | Order canceled | Yes | No | No | No |
-| `Refunded` | Fully refunded | Yes | No | No | No |
-| `Returned` | Items returned | No | No | Yes | No |
-| `OnHold` | Manual review needed | No | Yes | No | No |
-| `Fraud` | Fraud detected | Yes | No | No | No |
-| `PaymentFailed` | Payment failed | Yes | No | No | No |
+| State | Description | Final | Can Cancel | Can Refund | Can Modify | Can Receive Payment |
+|-------|-------------|-------|------------|------------|------------|---------------------|
+| `Created` | Initial state (`public static string $name = 'created'`) | No | Yes | No | Yes | Yes |
+| `PendingPayment` | Awaiting payment | No | Yes | No | Yes | Yes |
+| `Processing` | Payment received, preparing | No | Yes | Yes | No | No |
+| `Shipped` | Order shipped | No | No | No | No | No |
+| `Delivered` | Order delivered | No | No | Yes | No | No |
+| `Completed` | Fully completed | Yes | No | Yes | No | No |
+| `Canceled` | Order canceled | Yes | No | No | No | No |
+| `Refunded` | Fully refunded | Yes | No | No | No | No |
+| `Returned` | Items returned | No | No | Yes | No | No |
+| `OnHold` | Manual review needed | No | Yes | No | No | No |
+| `Fraud` | Fraud detected | Yes | No | No | No | No |
+| `PaymentFailed` | Payment failed | Yes | No | No | No | No |
 
 Those 12 concrete states are the complete set in `AIArmada\Orders\States`.
 
@@ -92,10 +92,11 @@ $order->status->color();  // "warning"
 $order->status->icon();   // "heroicon-o-clock"
 
 // Check capabilities
-$order->status->canCancel();  // bool
-$order->status->canRefund();  // bool
-$order->status->canModify();  // bool
-$order->status->isFinal();    // bool
+$order->status->canCancel();          // bool
+$order->status->canRefund();          // bool
+$order->status->canModify();          // bool
+$order->status->canReceivePayment();  // bool - new payment identities only
+$order->status->isFinal();            // bool
 ```
 
 ## Transitions
@@ -105,6 +106,19 @@ Transitions are explicit classes that handle state changes:
 ### PaymentConfirmed
 
 `PendingPayment` → `Processing`
+
+Partial payments are supported. While the order can receive payment
+(`canReceivePayment()` is true only in `Created` and `PendingPayment`), each
+accepted payment is recorded for its actual amount; the order stays awaiting
+payment until the accepted payments cover the stored order total. Only the
+payment that clears the balance transitions the order to `Processing`, stamps
+`paid_at`, and stages the `OrderProcessingStarted` / `OrderFulfillmentRequired`
+outbox rows — earlier partial payments stage nothing and keep only their own
+payment timestamps.
+
+- `OrderPaid` fires once per newly accepted payment with that payment's actual amount.
+- New payment identities are rejected with `OrderNotAwaitingPayment` outside the payable states; an already-recorded `(gateway, transaction_id)` identity replays idempotently from any state and is rejected only when its amount or currency differs.
+- A payment above the outstanding balance is rejected with `InvalidArgumentException`.
 
 ```php
 use AIArmada\Orders\Transitions\PaymentConfirmed;
@@ -156,6 +170,8 @@ $order->status->transitionTo(Canceled::class, new OrderCanceled(
     canceledBy: auth()->id(),
 ));
 ```
+
+When the order has received money (`paid_total > 0`) and `issueRefund` is enabled, the transition reserves the remaining refundable balance as pending refunds through `RegisterOrderRefund::createCancellationReservations()`. The remainder is total paid minus settled refunds minus existing pending reservations, allocated FIFO across the completed payments and never beyond each payment's own remaining balance. Reservations carry the stable identity `cancel:{order}:{payment}` in `allocation_key`, so retried or concurrent cancellations cannot reserve twice, and a never-paid order reserves nothing. Fulfillment staged but not yet relayed is suppressed in the same transaction.
 
 ### OrderHeld
 
@@ -234,8 +250,19 @@ $order->status->transitionTo(Refunded::class, new RefundProcessed(
     amount: 5000,
     reason: 'Items returned',
     transactionId: 'ref_789',
+    // optional: attribute the whole amount to one received payment instead
+    // of allocating FIFO across them
+    // payment: $payment,
 ));
 ```
+
+The amount is allocated across the payments that actually received money
+(FIFO by creation order), bounded by each payment's own remaining amount and
+by the order's remaining refundable amount. A fully refunded payment is marked
+`PaymentStatus::Refunded` as soon as its own amount is returned; the order
+itself only moves to `Refunded` once settled refunds reach `paid_total`. One
+`OrderRefunded` event fires per persisted allocation row, carrying that row's
+refund id and amount.
 
 ### PaymentFailed
 
@@ -272,7 +299,9 @@ $order->status->transitionTo(Completed::class, new OrderCompleted($order));
 ### RefundCompleted
 
 Takes an `OrderRefund` (not an `Order`) and only completes a refund already in
-`RefundStatus::Pending`:
+`RefundStatus::Pending`. Each payment whose full amount has been returned by
+completed refunds is marked `PaymentStatus::Refunded`; the order transitions to
+`Refunded` only when settled refunds reach `paid_total`:
 
 ```php
 use AIArmada\Orders\Transitions\RefundCompleted;
@@ -298,8 +327,10 @@ $service->complete($order);
 $service->cancel($order, 'Customer requested', auth()->id());
 
 // processRefund() takes transactionId as the 3rd argument and reason as the 4th.
-// Both are required — a 3-argument call is an ArgumentCountError.
+// Both are required — a 3-argument call is an ArgumentCountError. Pass a payment
+// (6th argument) to attribute the whole amount to that received payment.
 $service->processRefund($order, 5000, 'ref_789', 'Returned items');
+$service->processRefund($order, 5000, 'ref_790', 'Returned items', payment: $payment);
 ```
 
 ## Custom State Logic

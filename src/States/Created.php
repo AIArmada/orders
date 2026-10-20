@@ -31,6 +31,11 @@ final class Created extends OrderStatus
         return true;
     }
 
+    public function canReceivePayment(): bool
+    {
+        return true;
+    }
+
     public function canModify(): bool
     {
         return true;

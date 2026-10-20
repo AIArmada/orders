@@ -95,6 +95,63 @@ $order->delete();
 DB::table('orders')->where('id', $orderId)->delete();
 ```
 
+### Child record parent move throws "immutable after creation"
+
+**Cause**: `order_id` on `OrderItem`, `OrderNote`, `OrderPayment`, or
+`OrderRefund` (and `payment_id` on refunds) is immutable once persisted.
+
+**Solution**: Child records belong to the order they were created against.
+Create a new child record on the target order instead of moving a persisted
+one:
+
+```php
+// Wrong - throws InvalidArgumentException
+$item->order_id = $otherOrder->id;
+$item->save();
+
+// Correct - create a fresh line on the target order
+$otherOrder->items()->create([
+    'name' => $item->name,
+    'quantity' => $item->quantity,
+    'unit_price' => $item->unit_price,
+    'currency' => $item->currency,
+]);
+```
+
+A refund `payment_id` must also reference a payment of the same order; refund
+actions (`RegisterOrderRefund`) pick the payment for you. A refund's
+`allocation_key` (its request identity) is equally immutable, while its
+`transaction_id` is replaced with the provider refund id on completion.
+
+### Refund rejected with "cannot exceed the remaining refundable amount"
+
+**Cause**: The amount exceeds the money actually received on the order (or
+on the specified payment).
+
+**Solution**: `RefundAllocator::remainingForOrder()` is `paid_total` minus
+settled minus pending refunds; `RefundAllocator::remainingForPayment()` is the
+payment's amount minus refunds already attributed to it, and only
+Completed/Refunded payments have capacity at all: attributing a refund to a
+payment that never received money (Pending or Failed) is rejected with
+`The specified payment has not received any refundable money.` There is no
+grand-total fallback, so an order that never received money reserves nothing.
+A refund larger than one receipt splits FIFO across the payments that received
+money instead of over-allocating a single receipt:
+
+```php
+// Two 5,000 receipts, 7,000 refund: 5,000 on the first receipt,
+// 2,000 on the second.
+$refunds = app(RegisterOrderRefund::class)->createPending(
+    order: $order,
+    amount: 7000,
+    transactionId: 'ref_split_1',
+    reason: 'Customer return',
+);
+```
+
+Passing `payment:` attributes the whole refund to that payment and is rejected
+with a `specified payment` message when the payment cannot cover it.
+
 ### Health check shows orders stuck
 
 **Cause**: Orders in `Processing` state haven't been shipped.

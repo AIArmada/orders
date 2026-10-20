@@ -156,6 +156,12 @@ final class OrderNote extends Model
 
             self::assertAuthorBelongsToOwner($note);
         });
+
+        static::updating(function (OrderNote $note): void {
+            if ($note->isDirty('order_id')) {
+                throw new InvalidArgumentException('order_id is immutable after creation.');
+            }
+        });
     }
 
     private static function assertAuthorBelongsToOwner(OrderNote $note): void

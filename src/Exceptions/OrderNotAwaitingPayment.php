@@ -15,4 +15,12 @@ final class OrderNotAwaitingPayment extends InvalidArgumentException
             $state,
         ));
     }
+
+    public static function forPaymentState(string $state): self
+    {
+        return new self(sprintf(
+            'Payments can only be recorded for orders awaiting payment (current state: %s).',
+            $state,
+        ));
+    }
 }

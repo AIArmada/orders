@@ -14,6 +14,7 @@ use AIArmada\Orders\Actions\RegisterOrderRefund;
 use AIArmada\Orders\Contracts\OrderServiceInterface;
 use AIArmada\Orders\Models\Order;
 use AIArmada\Orders\Models\OrderItem;
+use AIArmada\Orders\Models\OrderPayment;
 use AIArmada\Orders\Models\OrderRefund;
 use AIArmada\Orders\Transitions\DeliveryConfirmed;
 use AIArmada\Orders\Transitions\FreeOrderConfirmed;
@@ -142,10 +143,11 @@ final class OrderService implements OrderServiceInterface
         string $transactionId,
         string $reason,
         array $metadata = [],
+        ?OrderPayment $payment = null,
     ): Order {
         $this->assertOwnerBoundaryForMutation($order, __METHOD__);
 
-        return $this->registerOrderRefund->execute($order, $amount, $transactionId, $reason, $metadata);
+        return $this->registerOrderRefund->execute($order, $amount, $transactionId, $reason, $metadata, $payment);
     }
 
     public function createPendingRefund(
@@ -154,10 +156,11 @@ final class OrderService implements OrderServiceInterface
         string $transactionId,
         string $reason,
         array $metadata = [],
-    ): OrderRefund {
+        ?OrderPayment $payment = null,
+    ): array {
         $this->assertOwnerBoundaryForMutation($order, __METHOD__);
 
-        return $this->registerOrderRefund->createPending($order, $amount, $transactionId, $reason, $metadata);
+        return $this->registerOrderRefund->createPending($order, $amount, $transactionId, $reason, $metadata, $payment);
     }
 
     public function claimPendingRefundSubmission(OrderRefund $refund): bool

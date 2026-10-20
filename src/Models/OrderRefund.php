@@ -6,6 +6,7 @@ namespace AIArmada\Orders\Models;
 
 use AIArmada\CommerceSupport\Concerns\HasCommerceAudit;
 use AIArmada\CommerceSupport\Concerns\LogsCommerceActivity;
+use AIArmada\CommerceSupport\Support\MoneyFormatter;
 use AIArmada\CommerceSupport\Support\OwnerContext;
 use AIArmada\CommerceSupport\Support\OwnerWriteGuard;
 use AIArmada\CommerceSupport\Traits\FormatsMoney;
@@ -29,6 +30,7 @@ use OwenIt\Auditing\Contracts\Auditable;
  * @property string|null $owner_type
  * @property string $gateway
  * @property string|null $transaction_id
+ * @property string|null $allocation_key
  * @property int $amount
  * @property string $currency
  * @property RefundStatus $status
@@ -65,6 +67,7 @@ final class OrderRefund extends Model implements Auditable
         'payment_id',
         'gateway',
         'transaction_id',
+        'allocation_key',
         'amount',
         'currency',
         'status',
@@ -209,6 +212,40 @@ final class OrderRefund extends Model implements Auditable
                 $refund->owner_type = null;
                 $refund->owner_id = null;
             }
+
+            self::assertPaymentBelongsToOrder($refund);
+
+            $refund->currency = MoneyFormatter::normalizeCurrency($refund->currency);
+
+            // Owner-safe order lookup is already done above; reuse a
+            // scope-bypassing read here because owner context may be absent on
+            // direct model/import paths.
+            $order = Order::query()->withoutOwnerScope()->find($refund->order_id);
+
+            if ($order instanceof Order) {
+                $orderCurrency = MoneyFormatter::normalizeCurrency($order->currency);
+
+                if ($refund->currency !== $orderCurrency) {
+                    throw new InvalidArgumentException(sprintf(
+                        'Refund currency %s does not match the order currency %s.',
+                        $refund->currency,
+                        $orderCurrency,
+                    ));
+                }
+            }
+
+            if ($refund->payment_id !== null) {
+                $payment = OrderPayment::query()->withoutOwnerScope()->find($refund->payment_id);
+
+                if ($payment instanceof OrderPayment
+                    && MoneyFormatter::normalizeCurrency($payment->currency) !== $refund->currency) {
+                    throw new InvalidArgumentException(sprintf(
+                        'Refund currency %s does not match the payment currency %s.',
+                        $refund->currency,
+                        MoneyFormatter::normalizeCurrency($payment->currency),
+                    ));
+                }
+            }
         });
 
         // Keep the parent order's cached refund totals in sync for every write
@@ -222,6 +259,13 @@ final class OrderRefund extends Model implements Auditable
                 return;
             }
 
+            $order = Order::query()->withoutOwnerScope()->find($refund->order_id);
+
+            if (! $order instanceof Order
+                || MoneyFormatter::normalizeCurrency($refund->currency) !== MoneyFormatter::normalizeCurrency($order->currency)) {
+                return;
+            }
+
             Order::query()->whereKey($refund->order_id)->increment($column, $amount);
         });
 
@@ -229,6 +273,13 @@ final class OrderRefund extends Model implements Auditable
             if (! $refund->wasChanged('status')
                 && ! $refund->wasChanged('amount')
             ) {
+                return;
+            }
+
+            $order = Order::query()->withoutOwnerScope()->find($refund->order_id);
+
+            if (! $order instanceof Order
+                || MoneyFormatter::normalizeCurrency($refund->currency) !== MoneyFormatter::normalizeCurrency($order->currency)) {
                 return;
             }
 
@@ -270,8 +321,58 @@ final class OrderRefund extends Model implements Auditable
                 return;
             }
 
+            $order = Order::query()->withoutOwnerScope()->find($refund->order_id);
+
+            if (! $order instanceof Order
+                || MoneyFormatter::normalizeCurrency($refund->currency) !== MoneyFormatter::normalizeCurrency($order->currency)) {
+                return;
+            }
+
             Order::query()->whereKey($refund->order_id)->decrement($column, $amount);
         });
+
+        static::updating(function (OrderRefund $refund): void {
+            if ($refund->isDirty('order_id')) {
+                throw new InvalidArgumentException('order_id is immutable after creation.');
+            }
+
+            if ($refund->isDirty('payment_id')) {
+                throw new InvalidArgumentException('payment_id is immutable after creation.');
+            }
+
+            if ($refund->isDirty('allocation_key')) {
+                throw new InvalidArgumentException('allocation_key is immutable after creation.');
+            }
+
+            $refund->currency = MoneyFormatter::normalizeCurrency($refund->currency);
+
+            if ($refund->isDirty('currency')) {
+                throw new InvalidArgumentException('currency is immutable after creation.');
+            }
+        });
+    }
+
+    /**
+     * A refund may only reference a payment on its own order, resolved
+     * through the owner-safe access path when owner scoping is enabled.
+     */
+    private static function assertPaymentBelongsToOrder(OrderRefund $refund): void
+    {
+        if ($refund->payment_id === null) {
+            return;
+        }
+
+        if (! (bool) config('orders.owner.enabled', false)) {
+            $payment = OrderPayment::query()->withoutOwnerScope()->findOrFail($refund->payment_id);
+        } else {
+            $owner = OwnerContext::resolve();
+            $includeGlobal = (bool) config('orders.owner.include_global', false);
+            $payment = OwnerWriteGuard::findOrFailForOwner(OrderPayment::class, $refund->payment_id, $owner, $includeGlobal);
+        }
+
+        if ($payment->order_id !== $refund->order_id) {
+            throw new InvalidArgumentException('A refund payment must belong to the same order.');
+        }
     }
 
     private static function refundTotalColumn(RefundStatus | string | null $status): ?string

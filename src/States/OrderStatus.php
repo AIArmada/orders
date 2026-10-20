@@ -120,6 +120,19 @@ abstract class OrderStatus extends State
     }
 
     /**
+     * Whether new payment identities may be recorded in this state.
+     *
+     * Only states that are still awaiting payment qualify: canceled,
+     * fraud, refunded, and already-processing orders must never accept a
+     * fresh payment merely because a balance field is positive.
+     * Override in child classes to enable payment receipt.
+     */
+    public function canReceivePayment(): bool
+    {
+        return false;
+    }
+
+    /**
      * Whether the order can be modified in this state.
      * Override in child classes to enable modification.
      */

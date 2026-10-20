@@ -31,6 +31,11 @@ final class PendingPayment extends OrderStatus
         return true; // Customer can cancel before paying
     }
 
+    public function canReceivePayment(): bool
+    {
+        return true;
+    }
+
     public function canModify(): bool
     {
         return true; // Order can still be edited

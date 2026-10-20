@@ -8,12 +8,14 @@ use AIArmada\Addressing\Models\Address;
 use AIArmada\Addressing\Traits\HasAddresses;
 use AIArmada\CommerceSupport\Concerns\HasCommerceAudit;
 use AIArmada\CommerceSupport\Concerns\LogsCommerceActivity;
+use AIArmada\CommerceSupport\Support\MoneyFormatter;
 use AIArmada\CommerceSupport\Support\OwnerContext;
 use AIArmada\CommerceSupport\Traits\FormatsMoney;
 use AIArmada\CommerceSupport\Traits\HasOwner;
 use AIArmada\CommerceSupport\Traits\HasOwnerScopeConfig;
 use AIArmada\Orders\Database\Factories\OrderFactory;
 use AIArmada\Orders\States\OrderStatus;
+use AIArmada\Orders\Support\RefundAllocator;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
@@ -27,6 +29,7 @@ use Illuminate\Notifications\Notifiable;
 use Illuminate\Notifications\Notification;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use InvalidArgumentException;
 use LogicException;
 use OwenIt\Auditing\Contracts\Auditable;
 use Spatie\ModelStates\HasStates;
@@ -367,12 +370,7 @@ class Order extends Model implements Auditable
 
     public function getRemainingRefundable(): int
     {
-        $totalPaid = $this->getTotalPaid();
-        $refundCeiling = $totalPaid > 0
-            ? $totalPaid
-            : (int) $this->grand_total;
-
-        return max(0, $refundCeiling - $this->getTotalRefunded() - $this->getTotalPendingRefunded());
+        return RefundAllocator::remainingForOrder($this);
     }
 
     public function getBalanceDue(): int
@@ -470,6 +468,31 @@ class Order extends Model implements Auditable
 
     protected static function booted(): void
     {
+        // The accounting currency is fixed when the order is created: receipts,
+        // refunds, item lines, and the cached totals all read it, so a later
+        // edit would silently re-denominate money that was received in the
+        // original currency. Equivalent codes are canonicalized; everything
+        // else is rejected before any write.
+        static::saving(function (Order $order): void {
+            if (! $order->isDirty('currency')) {
+                return;
+            }
+
+            $normalized = MoneyFormatter::normalizeCurrency($order->currency);
+
+            // A partial select that omitted the column has no persisted code to
+            // compare against, so a currency write fails closed instead of
+            // assuming the default and relabelling the stored row.
+            $persisted = $order->exists ? $order->getRawOriginal('currency') : null;
+
+            if ($order->exists
+                && ($persisted === null || $normalized !== MoneyFormatter::normalizeCurrency((string) $persisted))) {
+                throw new InvalidArgumentException('The order accounting currency is immutable after creation.');
+            }
+
+            $order->currency = $normalized;
+        });
+
         static::creating(function (Order $order): void {
             if (empty($order->order_number)) {
                 $order->order_number = static::generateOrderNumber();

@@ -6,6 +6,17 @@ title: API Reference
 
 ## Models
 
+> **warning**
+> Every persisted child record (`OrderItem`, `OrderNote`, `OrderPayment`,
+> `OrderRefund`) keeps its `order_id` immutable after creation. Refunds also
+> keep `payment_id` and `allocation_key` immutable, and a refund `payment_id`
+> must identify a payment on the same order, resolved through the owner-safe
+> access path when owner scoping is enabled. Parent moves throw
+> `InvalidArgumentException` before any write, so cached order totals
+> (`paid_total`, `pending_refunded_total`, `refunded_total`) are never touched
+> by a rejected update. There are no database-level foreign keys: this
+> integrity is enforced in the model layer.
+
 ### Order
 
 The main order model.
@@ -26,7 +37,7 @@ The main order model.
 | `shipping_total` | `int` | Shipping cost in cents |
 | `tax_total` | `int` | Tax amount in cents |
 | `grand_total` | `int` | Grand total in cents |
-| `currency` | `string` | 3-letter currency code |
+| `currency` | `string` | 3-letter accounting currency code (normalized; immutable after creation) |
 | `notes` | `string\|null` | Customer-facing notes |
 | `internal_notes` | `string\|null` | Internal notes |
 | `metadata` | `array\|null` | JSON metadata |
@@ -89,7 +100,10 @@ $order->getTotalPaid(): int            // cents
 $order->getTotalPendingRefunded(): int // cents
 $order->getTotalRefunded(): int        // cents
 $order->getBalanceDue(): int           // cents
-$order->getRemainingRefundable(): int  // cents
+
+// cents — paid_total minus settled and pending refunds (no grand-total
+// fallback; a never-paid order refunds nothing)
+$order->getRemainingRefundable(): int
 
 // Formatting — MoneyFormatter::prefixSymbol() concatenates without a space
 $order->getFormattedSubtotal(): string       // "RM99.00"
@@ -178,7 +192,8 @@ Refund records.
 | `order_id` | `string` | Parent order ID |
 | `payment_id` | `string\|null` | Related payment ID |
 | `gateway` | `string` | Refund gateway |
-| `transaction_id` | `string\|null` | Refund transaction ID |
+| `transaction_id` | `string\|null` | Provider refund ID; starts as the request identity and is replaced on completion |
+| `allocation_key` | `string\|null` | Immutable request/allocation identity (`cancel:{order}:{payment}` for cancellation reservations) |
 | `amount` | `int` | Refund amount in cents |
 | `currency` | `string` | Currency code |
 | `reason` | `string` | Refund reason |
@@ -187,6 +202,10 @@ Refund records.
 | `failed_at` | `Carbon\|null` | Refund failure timestamp |
 | `provider_submission_started_at` | `Carbon\|null` | Timestamp at which an external provider submission was claimed |
 | `metadata` | `array\|null` | Additional data |
+
+A refund request larger than a single receipt is split into one `OrderRefund`
+row per allocated payment: each row carries that payment's gateway and
+currency, and each payment is only refunded up to its own received amount.
 
 ### OrderNote
 
@@ -309,22 +328,26 @@ interface OrderServiceInterface
     public function confirmDelivery(Order $order, array $metadata = []): Order;
     public function complete(Order $order, array $metadata = []): Order;
 
-    // transactionId is the 3rd argument, reason the 4th — both required
+    // transactionId is the 3rd argument, reason the 4th — both required.
+    // Pass a payment to attribute the whole refund to that received payment.
     public function processRefund(
         Order $order,
         int $amount,
         string $transactionId,
         string $reason,
         array $metadata = [],
+        ?OrderPayment $payment = null,
     ): Order;
 
+    // Returns one pending refund per allocated payment
     public function createPendingRefund(
         Order $order,
         int $amount,
         string $transactionId,
         string $reason,
         array $metadata = [],
-    ): OrderRefund;
+        ?OrderPayment $payment = null,
+    ): array;
 
     public function claimPendingRefundSubmission(OrderRefund $refund): bool;
     public function completePendingRefund(OrderRefund $refund, ?string $transactionId = null): Order;
@@ -333,6 +356,9 @@ interface OrderServiceInterface
     public function recalculateTotals(Order $order): Order;
 }
 ```
+
+> **info**
+> `confirmPayment()` accepts partial payments: each call records one payment with its actual amount under the idempotent `(gateway, transactionId)` identity. The order stays `PendingPayment` until the accepted payments cover the stored total; only the settling payment transitions it to `Processing`, stamps `paid_at`, and stages fulfillment. New identities are rejected outside the payable states (`Created` / `PendingPayment`), while a recorded identity replays idempotently from any state.
 
 ### FulfillmentHandler
 
@@ -406,6 +432,9 @@ interface PaymentHandler
 
 > **warning**
 > Breaking contract: custom `OrderPaid` producers must supply the actual payment amount in integer minor units, and custom `OrderRefunded` producers must supply the actual persisted refund id. There is no guessed timestamp/amount identity and no compatibility fallback; update custom producers to pass these values explicitly.
+
+> **info**
+> A refund split across receipts emits one `OrderRefunded` event per persisted allocation row: `amount` is that row's amount and `refundId` is that row's id. Listeners that adjust totals must be idempotent per `refundId`.
 
 | Event | Properties |
 |-------|------------|

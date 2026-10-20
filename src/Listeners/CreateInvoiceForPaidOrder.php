@@ -19,6 +19,12 @@ final class CreateInvoiceForPaidOrder
             return;
         }
 
+        // Partial payments must not invoice the order as fully paid; the
+        // invoice waits until accepted payments cover the order total.
+        if (! $event->order->isFullyPaid()) {
+            return;
+        }
+
         $this->creator->execute($event->order, $event->transactionId, $event->gateway);
     }
 }

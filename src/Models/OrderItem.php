@@ -230,6 +230,12 @@ class OrderItem extends Model implements Auditable
         static::saving(function (OrderItem $item): void {
             $item->total = $item->calculateTotal();
         });
+
+        static::updating(function (OrderItem $item): void {
+            if ($item->isDirty('order_id')) {
+                throw new InvalidArgumentException('order_id is immutable after creation.');
+            }
+        });
     }
 
     protected function casts(): array

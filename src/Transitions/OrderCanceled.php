@@ -4,8 +4,7 @@ declare(strict_types=1);
 
 namespace AIArmada\Orders\Transitions;
 
-use AIArmada\Orders\Enums\PaymentStatus;
-use AIArmada\Orders\Enums\RefundStatus;
+use AIArmada\Orders\Actions\RegisterOrderRefund;
 use AIArmada\Orders\Events\OrderCanceled as OrderCanceledEvent;
 use AIArmada\Orders\Events\OrderCancelInitiated;
 use AIArmada\Orders\Models\Order;
@@ -50,8 +49,15 @@ final class OrderCanceled extends Transition
                 'visibility' => 'customer',
             ]);
 
-            if ($this->issueRefund && $this->order->isPaid()) {
-                $this->initiateRefund();
+            // Refunds are driven by money actually received, not the paid_at
+            // flag: a partially paid order still needs its receipts returned,
+            // and a never-paid order must not fall back to the order total.
+            if ($this->issueRefund && $this->order->getTotalPaid() > 0) {
+                app(RegisterOrderRefund::class)->createCancellationReservations($this->order, $this->reason);
+
+                // The reservation accounting moved cached totals; refresh so
+                // subscribers and later reads in this request see them.
+                $this->order->refresh();
             }
 
             // Fulfillment staged but never relayed must not dispatch
@@ -72,27 +78,5 @@ final class OrderCanceled extends Transition
 
             return $this->order;
         });
-    }
-
-    protected function initiateRefund(): void
-    {
-        // Create pending refund record
-        $totalPaid = $this->order->getTotalPaid();
-        if ($totalPaid > 0) {
-            $payment = $this->order->payments()->where('status', PaymentStatus::Completed)->first();
-            if ($payment) {
-                // The created-refund event syncs pending_refunded_total.
-                $this->order->refunds()->create([
-                    'payment_id' => $payment->id,
-                    'gateway' => $payment->gateway,
-                    'amount' => $totalPaid,
-                    'currency' => $this->order->currency,
-                    'status' => RefundStatus::Pending,
-                    'reason' => 'Order canceled: ' . $this->reason,
-                ]);
-
-                $this->order->refresh();
-            }
-        }
     }
 }

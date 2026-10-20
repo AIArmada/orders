@@ -105,11 +105,47 @@ app(RegisterOrderRefund::class)->execute(
     transactionId: 'ref_xyz789',
     reason: 'Customer requested refund',
 );
+
+// Attribute the whole refund to one specific received payment instead
+// (rejected when the payment cannot cover the amount)
+app(RegisterOrderRefund::class)->execute(
+    order: $order,
+    amount: 5000,
+    transactionId: 'ref_xyz790',
+    reason: 'Refund the card receipt',
+    payment: $payment,
+);
 ```
 
 > **info**
 > `RegisterOrderRefund::execute()` declares `amount`, then `transactionId`, then
 > `reason`. Keep that order or use the named arguments shown above.
+
+Refunds are bounded by money actually received on two dimensions: the order's
+remaining refundable amount (`paid_total` minus settled minus pending refunds)
+and each referenced payment's own remaining amount. A refund larger than one
+receipt splits FIFO across the payments that received money — for example two
+5,000 receipts and a 7,000 refund reserve 5,000 on the first receipt and 2,000
+on the second. Only payments actually received (status `Completed` or
+`Refunded`) fund refunds, and there is no grand-total fallback: an order that
+never received money has nothing to refund. Each allocation row carries the
+request identity in `allocation_key`; the provider refund id lands in
+`transaction_id` when the refund completes.
+
+`RegisterOrderRefund::createPending()` returns one pending refund per allocated
+payment (`list<OrderRefund>`); a retry with the same transaction id returns the
+existing reservations, and a failed request stays failed.
+
+> **warning**
+> Child records are bound to the order they were created against: `order_id`
+> (all child models) and `payment_id` (refunds) are immutable after creation,
+> and a refund payment must belong to the same order. The parent's accounting
+> `currency` is immutable after creation too. Attempting either change throws
+> `InvalidArgumentException` before any write, so cached totals stay
+> untouched. See the [API Reference](06-api-reference.md) for the full
+> contract.
+
+**Partial payments:** each accepted payment is recorded for its actual amount and fires `OrderPaid` per receipt, but the order stays `PendingPayment` until the accepted completed payments cover the stored total. Only the payment that clears the balance transitions the order to `Processing`, stamps `paid_at`, and stages fulfillment; earlier partials stage nothing. New payment identities are accepted only while the order can receive payment (`Created` / `PendingPayment`); replays of a recorded `(gateway, transaction_id)` identity stay idempotent, and a payment above the outstanding balance is rejected. See the [state machine](05-state-machine.md) for the full contract.
 
 ### Cancellation & Completion
 
@@ -127,6 +163,8 @@ app(CancelOrder::class)->execute(
 // Complete (marks as completed)
 app(CompleteOrder::class)->execute($order);
 ```
+
+Cancelling an order that has received money reserves its remaining refundable balance as pending refunds in the same transaction: `RegisterOrderRefund::createCancellationReservations()` allocates across the completed payments in FIFO order, never beyond each payment's own remaining amount and never more than total paid minus settled and pending refunds. Reservations use the stable identity `cancel:{order}:{payment}` in `allocation_key`, so retried or concurrent cancellations cannot double-reserve; never-paid orders reserve nothing. See the [state machine](05-state-machine.md) for the transition contract.
 
 ### Deleting Orders (Prefer Cancel/Refund)
 
@@ -250,6 +288,19 @@ if ($order->isFullyPaid()) {
 ### Cached payment/refund totals
 
 `paid_total`, `refunded_total`, and `pending_refunded_total` are cached on the order so balance checks (`getTotalPaid()`, `getTotalRefunded()`, `getRemainingRefundable()`, `getBalanceDue()`, `isFullyPaid()`) never fan out into per-relation sums. The caches are the single source of truth for reads and are kept in sync by `OrderPayment`/`OrderRefund` model events — every write path (transitions, actions, and direct creates) flows through them, so do not assign these columns manually. Item totals still come from `recalculateTotals()`, which uses ex-tax subtotals: `grand_total = subtotal + tax_total + shipping_total - discount_total`.
+
+> **info**
+> Order payment and refund accounting is single-currency. Every order has one explicit accounting currency (`currency`), and only receipts/refunds whose currency matches it can count toward `paid_total`, `refunded_total`, or `pending_refunded_total`. A receipt or refund in another currency is rejected on creation, update, and status completion; a received receipt cannot be re-denominated. Cross-currency settlement is outside this API unless an explicit conversion model is added later. Currency codes are normalized through `MoneyFormatter::normalizeCurrency()` before comparison.
+>
+> The order accounting currency itself becomes immutable the moment the order
+> row is created. Changing `currency` through `update()`, `save()`, `fill()`,
+> or `forceFill()` throws `InvalidArgumentException` — before the first
+> receipt, and regardless of items, pending payment rows, or pending refund
+> reservations — so historical receipts and refunds are never relabelled.
+> Submitted codes are normalized on write (`myr` and `RM` become `MYR`); an
+> edit that normalizes to the recorded code is accepted as a no-op. To
+> re-denominate an order that never received money, cancel or delete it and
+> create a new order in the correct currency.
 
 ## Fulfillment & Addresses
 

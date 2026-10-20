@@ -6,6 +6,7 @@ namespace AIArmada\Orders\Models;
 
 use AIArmada\CommerceSupport\Concerns\HasCommerceAudit;
 use AIArmada\CommerceSupport\Concerns\LogsCommerceActivity;
+use AIArmada\CommerceSupport\Support\MoneyFormatter;
 use AIArmada\CommerceSupport\Support\OwnerContext;
 use AIArmada\CommerceSupport\Support\OwnerWriteGuard;
 use AIArmada\CommerceSupport\Traits\FormatsMoney;
@@ -188,6 +189,7 @@ class OrderPayment extends Model implements Auditable
     protected static function booted(): void
     {
         static::saving(function (OrderPayment $payment): void {
+            $payment->currency = MoneyFormatter::normalizeCurrency($payment->currency);
             $payment->assertTransactionIdentityIsAvailable();
         });
 
@@ -211,15 +213,40 @@ class OrderPayment extends Model implements Auditable
                 $payment->owner_type = null;
                 $payment->owner_id = null;
             }
+
+            // Order accounting is single-currency: a nonzero receipt in another
+            // currency cannot count toward the order balance. Normalize first so
+            // aliases resolve to the canonical code before comparison.
+            $paymentCurrency = MoneyFormatter::normalizeCurrency($payment->currency);
+            $orderCurrency = MoneyFormatter::normalizeCurrency($order->currency);
+
+            if ($paymentCurrency !== $orderCurrency && (int) $payment->amount !== 0) {
+                throw new InvalidArgumentException(sprintf(
+                    'Payment currency %s does not match the order currency %s.',
+                    $paymentCurrency,
+                    $orderCurrency,
+                ));
+            }
+
+            $payment->currency = $paymentCurrency;
         });
 
         // Keep the parent order's cached paid_total in sync for every write
         // path (transitions, actions, and direct creates alike) using atomic
         // increments. paid_total is cumulative: only entering Completed adds.
         static::created(function (OrderPayment $payment): void {
-            if ($payment->status === PaymentStatus::Completed && (int) $payment->amount > 0) {
-                Order::query()->whereKey($payment->order_id)->increment('paid_total', (int) $payment->amount);
+            if ($payment->status !== PaymentStatus::Completed || (int) $payment->amount <= 0) {
+                return;
             }
+
+            $order = Order::query()->withoutOwnerScope()->find($payment->order_id);
+
+            if (! $order instanceof Order
+                || MoneyFormatter::normalizeCurrency($payment->currency) !== MoneyFormatter::normalizeCurrency($order->currency)) {
+                return;
+            }
+
+            Order::query()->whereKey($payment->order_id)->increment('paid_total', (int) $payment->amount);
         });
 
         static::updated(function (OrderPayment $payment): void {
@@ -227,8 +254,12 @@ class OrderPayment extends Model implements Auditable
             $isCompleted = $payment->status === PaymentStatus::Completed;
             $amount = (int) $payment->amount;
 
+            $order = Order::query()->withoutOwnerScope()->find($payment->order_id);
+            $currencyMatches = $order instanceof Order
+                && MoneyFormatter::normalizeCurrency($payment->currency) === MoneyFormatter::normalizeCurrency($order->currency);
+
             if (! $wasCompleted && $isCompleted) {
-                if ($amount > 0) {
+                if ($amount > 0 && $currencyMatches) {
                     Order::query()->whereKey($payment->order_id)->increment('paid_total', $amount);
                 }
 
@@ -236,6 +267,10 @@ class OrderPayment extends Model implements Auditable
             }
 
             if (! $wasCompleted || ! $isCompleted || ! $payment->wasChanged('amount')) {
+                return;
+            }
+
+            if (! $currencyMatches) {
                 return;
             }
 
@@ -249,8 +284,56 @@ class OrderPayment extends Model implements Auditable
         });
 
         static::deleted(function (OrderPayment $payment): void {
-            if ($payment->status === PaymentStatus::Completed && (int) $payment->amount > 0) {
-                Order::query()->whereKey($payment->order_id)->decrement('paid_total', (int) $payment->amount);
+            if ($payment->status !== PaymentStatus::Completed || (int) $payment->amount <= 0) {
+                return;
+            }
+
+            $order = Order::query()->withoutOwnerScope()->find($payment->order_id);
+
+            if (! $order instanceof Order
+                || MoneyFormatter::normalizeCurrency($payment->currency) !== MoneyFormatter::normalizeCurrency($order->currency)) {
+                return;
+            }
+
+            Order::query()->whereKey($payment->order_id)->decrement('paid_total', (int) $payment->amount);
+        });
+
+        static::updating(function (OrderPayment $payment): void {
+            if ($payment->isDirty('order_id')) {
+                throw new InvalidArgumentException('order_id is immutable after creation.');
+            }
+
+            $payment->currency = MoneyFormatter::normalizeCurrency($payment->currency);
+
+            // A received receipt cannot be re-denominated into another
+            // currency; its amount already counts toward the cached paid total.
+            $wasReceived = self::paymentStatusWas($payment, PaymentStatus::Completed)
+                || self::paymentStatusWas($payment, PaymentStatus::Refunded);
+
+            if ($wasReceived && $payment->isDirty('currency')) {
+                throw new InvalidArgumentException('currency is immutable for a received payment.');
+            }
+
+            // Resolve the parent order's accounting currency without changing
+            // ownership. If the receipt is being completed (or carries a
+            // nonzero amount) in a foreign currency, reject the write before
+            // the cached paid total is touched.
+            $order = Order::query()->withoutOwnerScope()->find($payment->order_id);
+
+            if ($order instanceof Order) {
+                $orderCurrency = MoneyFormatter::normalizeCurrency($order->currency);
+
+                $becomingReceived = $payment->status === PaymentStatus::Completed
+                    || $payment->status === PaymentStatus::Refunded;
+
+                if ($payment->currency !== $orderCurrency
+                    && ((int) $payment->amount !== 0 || $becomingReceived)) {
+                    throw new InvalidArgumentException(sprintf(
+                        'Payment currency %s does not match the order currency %s.',
+                        $payment->currency,
+                        $orderCurrency,
+                    ));
+                }
             }
         });
     }

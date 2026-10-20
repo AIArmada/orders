@@ -8,6 +8,7 @@ use AIArmada\Cart\Cart;
 use AIArmada\Cart\Contracts\CartManagerInterface;
 use AIArmada\Orders\Models\Order;
 use AIArmada\Orders\Models\OrderItem;
+use AIArmada\Orders\Models\OrderPayment;
 use AIArmada\Orders\Models\OrderRefund;
 use Illuminate\Database\Eloquent\Model;
 
@@ -76,6 +77,11 @@ interface OrderServiceInterface
     /**
      * Confirm payment for an order.
      *
+     * Partial payments are supported: the payment is recorded with its
+     * actual amount, and the order only moves to processing (and only then
+     * stages fulfillment) once accepted completed payments cover the grand
+     * total. Replays of a recorded payment identity stay idempotent.
+     *
      * @param  array<string, mixed>  $metadata
      */
     public function confirmPayment(
@@ -125,6 +131,10 @@ interface OrderServiceInterface
     /**
      * Process refund for returned order.
      *
+     * The amount is allocated FIFO across the payments that actually
+     * received money, bounded by each payment's own remaining amount. Pass
+     * a payment to attribute the whole refund to that payment instead.
+     *
      * @param  array<string, mixed>  $metadata
      */
     public function processRefund(
@@ -133,12 +143,18 @@ interface OrderServiceInterface
         string $transactionId,
         string $reason,
         array $metadata = [],
+        ?OrderPayment $payment = null,
     ): Order;
 
     /**
-     * Create a pending refund before asking a payment provider to process it.
+     * Create the pending reservations for a refund before asking a payment
+     * provider to process it.
+     *
+     * Returns one refund per allocated payment; a retry with the same
+     * transaction id returns the existing reservations.
      *
      * @param  array<string, mixed>  $metadata
+     * @return list<OrderRefund>
      */
     public function createPendingRefund(
         Order $order,
@@ -146,7 +162,8 @@ interface OrderServiceInterface
         string $transactionId,
         string $reason,
         array $metadata = [],
-    ): OrderRefund;
+        ?OrderPayment $payment = null,
+    ): array;
 
     /**
      * Atomically claim a pending refund before submitting it to a provider.

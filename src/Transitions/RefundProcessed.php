@@ -4,13 +4,16 @@ declare(strict_types=1);
 
 namespace AIArmada\Orders\Transitions;
 
-use AIArmada\Orders\Enums\PaymentStatus;
+use AIArmada\CommerceSupport\Support\MoneyFormatter;
 use AIArmada\Orders\Enums\RefundStatus;
 use AIArmada\Orders\Events\OrderRefunded;
 use AIArmada\Orders\Models\Order;
+use AIArmada\Orders\Models\OrderPayment;
+use AIArmada\Orders\Models\OrderRefund;
 use AIArmada\Orders\States\Refunded;
 use AIArmada\Orders\Support\OrderOutbox;
 use AIArmada\Orders\Support\RefundAllocationValidator;
+use AIArmada\Orders\Support\RefundAllocator;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
@@ -20,16 +23,22 @@ use Spatie\ModelStates\Transition;
  * Transition from Returned → Refunded.
  *
  * This transition is triggered when a refund is processed for returned items.
+ * The amount is allocated FIFO across the payments that actually received
+ * money, bounded by each payment's own remaining amount; when the caller
+ * specifies a payment, the whole amount lands on that payment instead.
  */
 final class RefundProcessed extends Transition
 {
+    /**
+     * @param  array<string, mixed>  $metadata
+     */
     public function __construct(
         private Order $order,
         private int $amount,
         private string $transactionId,
         private string $reason,
-        /** @var array<string, mixed> */
         private array $metadata = [],
+        private ?OrderPayment $payment = null,
     ) {}
 
     public function handle(): Order
@@ -48,50 +57,57 @@ final class RefundProcessed extends Transition
                 ->findOrFail($this->order->getKey());
             $this->order->refresh();
 
-            $totalPaid = $this->order->getTotalPaid();
-            $refundCeiling = $totalPaid > 0
-                ? $totalPaid
-                : (int) $this->order->grand_total;
-            $remainingRefundable = $this->order->getRemainingRefundable();
+            $allocations = RefundAllocator::allocate($this->order, $this->amount, $this->payment);
 
-            if ($this->amount > $remainingRefundable) {
-                throw new InvalidArgumentException(sprintf(
-                    'Refund amount cannot exceed the remaining refundable amount of %d.',
-                    $remainingRefundable,
-                ));
+            /** @var list<OrderRefund> $created */
+            $created = [];
+
+            foreach ($allocations as $allocation) {
+                $payment = $allocation['payment'];
+
+                // Record refund. The lifecycle timestamp is assigned directly
+                // because refund lifecycle fields are not mass assignable. The
+                // allocation key carries the caller's request identity while
+                // the transaction id is the provider refund identity.
+                $refund = $this->order->refunds()->make([
+                    'payment_id' => $payment->getKey(),
+                    'gateway' => $payment->gateway,
+                    'transaction_id' => $this->transactionId,
+                    'allocation_key' => $this->transactionId,
+                    'amount' => $allocation['amount'],
+                    'currency' => $payment->currency !== '' ? MoneyFormatter::normalizeCurrency($payment->currency) : MoneyFormatter::normalizeCurrency($this->order->currency),
+                    'status' => RefundStatus::Completed,
+                    'reason' => $this->reason,
+                    'metadata' => $this->metadata,
+                ]);
+                $refund->refunded_at = $now;
+                $refund->save();
+                $this->order->unsetRelation('refunds');
+                // The created-refund event already synced refunded_total.
+                $this->order->refresh();
+
+                $created[] = $refund;
             }
 
-            // Find the original payment
-            $payment = $this->order->payments()->where('status', PaymentStatus::Completed)->first();
+            // A payment reaches its own terminal state as soon as its whole
+            // amount is returned, independent of the order-level remainder.
+            $paidTotal = $this->order->getTotalPaid();
+            $refundedTotal = $this->order->getTotalRefunded();
 
-            // Record refund. The lifecycle timestamp is assigned directly
-            // because refund lifecycle fields are not mass assignable.
-            $refund = $this->order->refunds()->make([
-                'payment_id' => $payment?->id,
-                'gateway' => $payment?->gateway ?? 'manual',
-                'transaction_id' => $this->transactionId,
-                'amount' => $this->amount,
-                'currency' => $this->order->currency,
-                'status' => RefundStatus::Completed,
-                'reason' => $this->reason,
-                'metadata' => $this->metadata,
-            ]);
-            $refund->refunded_at = $now;
-            $refund->save();
-            $this->order->unsetRelation('refunds');
-            // The created-refund event already synced refunded_total; refresh
-            // so reads and the save below use fresh totals.
-            $this->order->refresh();
+            foreach ($this->order->payments()->get() as $payment) {
+                $attributed = (int) $this->order->refunds()
+                    ->where('payment_id', $payment->getKey())
+                    ->where('status', RefundStatus::Completed->value)
+                    ->sum('amount');
 
-            $isFullyRefunded = $this->order->getTotalRefunded() >= $refundCeiling;
-
-            // Keep the payment and order open for additional partial refunds. The
-            // order becomes terminal only after the whole paid amount is returned.
-            if ($isFullyRefunded) {
-                if ($payment !== null) {
+                if ($attributed >= (int) $payment->amount) {
                     $payment->markAsRefunded();
                 }
+            }
 
+            // The order is terminal only when the whole received amount has
+            // been returned; a never-paid order never reaches that ceiling.
+            if ($paidTotal > 0 && $refundedTotal >= $paidTotal) {
                 $this->order->refunded_at = $now;
                 $this->order->status->transitionTo(Refunded::class);
 
@@ -103,8 +119,17 @@ final class RefundProcessed extends Transition
 
             $this->order->save();
 
-            // Dispatch event
-            event(new OrderRefunded($this->order, $this->amount, $this->reason, (string) $refund->getKey(), $this->metadata));
+            // One event per persisted allocation row: the recorded identity
+            // and amount are per-payment facts, not the aggregate request.
+            foreach ($created as $refund) {
+                event(new OrderRefunded(
+                    $this->order,
+                    (int) $refund->amount,
+                    $this->reason,
+                    (string) $refund->getKey(),
+                    $this->metadata,
+                ));
+            }
 
             return $this->order;
         });

@@ -19,6 +19,7 @@ return new class extends Migration
 
             $table->string('gateway', 50);
             $table->string('transaction_id')->nullable()->index();
+            $table->string('allocation_key')->nullable()->index();
 
             $table->unsignedBigInteger('amount')->default(0);
             $table->string('currency', 3)->default('MYR');
