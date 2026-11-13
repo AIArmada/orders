@@ -8,8 +8,12 @@ use AIArmada\Orders\Enums\OrderItemStatus;
 use AIArmada\Orders\Events\OrderShipped;
 use AIArmada\Orders\Models\Order;
 use AIArmada\Orders\States\Shipped;
+use AIArmada\Orders\Support\PackageUnit;
+use AIArmada\Shipping\Integrations\OrderShipmentUnits;
 use Carbon\CarbonImmutable;
+use DomainException;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\DB;
 use Spatie\ModelStates\Transition;
 
 /**
@@ -30,6 +34,27 @@ final class ShipmentCreated extends Transition
     ) {}
 
     public function handle(): Order
+    {
+        return DB::transaction(function (): Order {
+            $this->order->newQuery()->lockForUpdate()->findOrFail($this->order->id);
+            $this->order->refresh();
+
+            if ($this->order->items()->get()->contains(fn ($item): bool => PackageUnit::componentsOf($item) !== [])) {
+                if (! class_exists(OrderShipmentUnits::class)) {
+                    throw new DomainException('Package fulfillment requires the shipping integration.');
+                }
+
+                if (! app(OrderShipmentUnits::class)->allItemsShipped($this->order, $this->shipmentId)
+                    || $this->order->isShipped()) {
+                    return $this->order;
+                }
+            }
+
+            return $this->markShipped();
+        });
+    }
+
+    private function markShipped(): Order
     {
         $shippedAt = CarbonImmutable::now();
 

@@ -91,6 +91,7 @@ abstract class OrderStatus extends State
             // Shipping → Delivery
             ->allowTransition(Shipped::class, Delivered::class)
             ->allowTransition(Shipped::class, Returned::class)
+            ->allowTransition(Shipped::class, Refunded::class)
             // Completion
             ->allowTransition(Delivered::class, Completed::class)
             ->allowTransition(Delivered::class, Returned::class)

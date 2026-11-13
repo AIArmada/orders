@@ -6,17 +6,21 @@ namespace AIArmada\Orders\Actions;
 
 use AIArmada\CommerceSupport\Support\MoneyFormatter;
 use AIArmada\Orders\Actions\Concerns\AssertsOrderOwnerBoundary;
+use AIArmada\Orders\Contracts\PackageReturnVerifier;
 use AIArmada\Orders\Enums\RefundStatus;
 use AIArmada\Orders\Events\OrderRefundFailed;
 use AIArmada\Orders\Models\Order;
 use AIArmada\Orders\Models\OrderPayment;
 use AIArmada\Orders\Models\OrderRefund;
 use AIArmada\Orders\States\Canceled;
+use AIArmada\Orders\States\Shipped;
+use AIArmada\Orders\Support\PackageUnit;
 use AIArmada\Orders\Support\RefundAllocationValidator;
 use AIArmada\Orders\Support\RefundAllocator;
 use AIArmada\Orders\Transitions\RefundCompleted;
 use AIArmada\Orders\Transitions\RefundProcessed;
 use Carbon\CarbonImmutable;
+use DomainException;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 use RuntimeException;
@@ -51,11 +55,19 @@ final class RegisterOrderRefund
                 ->findOrFail($order->getKey());
             $order->refresh();
 
+            $metadata = $this->packageRefundMetadata($order, $metadata);
+
             $existingRefund = $order->refunds()
                 ->where('transaction_id', $transactionId)
                 ->first();
 
             if ($existingRefund instanceof OrderRefund) {
+                $this->assertSamePackageReturn($existingRefund, $metadata);
+                if (isset($metadata['package_unit'])
+                    && $amount !== (int) $order->refunds()->where('transaction_id', $transactionId)->sum('amount')) {
+                    throw new DomainException('The amount does not match the existing package refund.');
+                }
+
                 if ($existingRefund->isPending()) {
                     throw new RuntimeException("Refund transaction {$transactionId} is already pending.");
                 }
@@ -67,9 +79,11 @@ final class RegisterOrderRefund
                 return $order;
             }
 
-            if (! $order->canBeRefunded()) {
+            if (! $this->canRefund($order, $metadata)) {
                 throw new RuntimeException("Order {$order->order_number} cannot be refunded in its current state.");
             }
+
+            $this->assertRefundScope($order, $metadata, $amount);
 
             return (new RefundProcessed($order, $amount, $transactionId, $reason, $metadata, $payment))->handle();
         });
@@ -110,6 +124,7 @@ final class RegisterOrderRefund
 
         return DB::transaction(function () use ($order, $amount, $transactionId, $reason, $metadata, $payment): array {
             $lockedOrder = $order->newQuery()->lockForUpdate()->findOrFail($order->getKey());
+            $metadata = $this->packageRefundMetadata($lockedOrder, $metadata);
 
             // The allocation key is the caller's idempotency key. Check it
             // after locking the order so concurrent retries cannot create two
@@ -124,6 +139,10 @@ final class RegisterOrderRefund
             if ($existing->isNotEmpty()) {
                 /** @var OrderRefund $existingRefund */
                 $existingRefund = $existing->first();
+                $this->assertSamePackageReturn($existingRefund, $metadata);
+                if (isset($metadata['package_unit']) && $amount !== $existing->sum('amount')) {
+                    throw new DomainException('The amount does not match the existing package refund.');
+                }
 
                 if ($existingRefund->isFailed()) {
                     throw new RuntimeException("Refund transaction {$transactionId} has already failed.");
@@ -140,10 +159,11 @@ final class RegisterOrderRefund
                 return array_values($existing->all());
             }
 
-            if (! $lockedOrder->canBeRefunded()) {
+            if (! $this->canRefund($lockedOrder, $metadata)) {
                 throw new RuntimeException("Order {$lockedOrder->order_number} cannot be refunded in its current state.");
             }
 
+            $this->assertRefundScope($lockedOrder, $metadata, $amount);
             $allocations = RefundAllocator::allocate($lockedOrder, $amount, $payment);
 
             $refunds = [];
@@ -341,6 +361,77 @@ final class RegisterOrderRefund
         event(new OrderRefundFailed($order, $failed, $reason, $failed->metadata ?? []));
 
         return $failed;
+    }
+
+    /** @param array<string, mixed> $metadata
+     * @return array<string, mixed>
+     */
+    private function packageRefundMetadata(Order $order, array $metadata): array
+    {
+        if (array_key_exists('package_unit', $metadata)) {
+            throw new InvalidArgumentException('Package refund identity is derived from the return authorization.');
+        }
+
+        $authorizationId = $metadata['return_authorization_id'] ?? null;
+        if ($authorizationId === null) {
+            return $metadata;
+        }
+
+        if (! is_string($authorizationId) || ! app()->bound(PackageReturnVerifier::class)) {
+            throw new DomainException('A valid package return authorization is required.');
+        }
+
+        $unit = app(PackageReturnVerifier::class)->receivedUnit($order, $authorizationId);
+        $metadata['package_unit'] = [
+            'order_item_id' => $unit->item->id,
+            'ordinal' => $unit->ordinal,
+        ];
+
+        return $metadata;
+    }
+
+    /** @param array<string, mixed> $metadata */
+    private function canRefund(Order $order, array $metadata): bool
+    {
+        return $order->canBeRefunded() || ($order->status instanceof Shipped && isset($metadata['package_unit']));
+    }
+
+    /** @param array<string, mixed> $metadata */
+    private function assertSamePackageReturn(OrderRefund $refund, array $metadata): void
+    {
+        if (($refund->metadata['return_authorization_id'] ?? null) !== ($metadata['return_authorization_id'] ?? null)) {
+            throw new DomainException('The refund transaction already belongs to another refund request.');
+        }
+    }
+
+    /** @param array<string, mixed> $metadata */
+    private function assertRefundScope(Order $order, array $metadata, int $amount): void
+    {
+        $reserved = $order->refunds()->whereIn('status', [RefundStatus::Pending, RefundStatus::Completed]);
+        $unit = $metadata['package_unit'] ?? null;
+
+        if (is_array($unit)) {
+            $refunds = $reserved->where('metadata->package_unit->order_item_id', $unit['order_item_id'])
+                ->where('metadata->package_unit->ordinal', $unit['ordinal']);
+            $paidUnit = new PackageUnit($order->items()->findOrFail($unit['order_item_id']), $unit['ordinal']);
+            $settled = (int) $refunds->clone()->where('status', RefundStatus::Completed)->sum('amount');
+
+            if ($settled >= $paidUnit->refundAmount() || $refunds->where('status', RefundStatus::Pending)->exists()) {
+                throw new DomainException('The package unit already has a pending or completed refund.');
+            }
+
+            if ($amount !== $paidUnit->refundAmount() - $settled) {
+                throw new DomainException('Refund the remaining net paid amount and allocated tax for the package unit.');
+            }
+
+            return;
+        }
+
+        $packageTotal = $order->items()->get()->sum(fn ($item): int => PackageUnit::componentsOf($item) === [] ? 0 : $item->calculateTotal());
+        if ($packageTotal > 0 && $amount + (int) $reserved->whereNull('metadata->package_unit')->sum('amount')
+            > max(0, $order->getTotalPaid() - $packageTotal)) {
+            throw new DomainException('A package unit refund requires a received and inspected return authorization.');
+        }
     }
 
     /**

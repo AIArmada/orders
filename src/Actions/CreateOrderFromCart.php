@@ -14,6 +14,8 @@ use AIArmada\CommerceSupport\Support\OwnerScopeConfig;
 use AIArmada\CommerceSupport\Support\OwnerWriteGuard;
 use AIArmada\Orders\Models\Order;
 use AIArmada\Orders\Support\CartLineSnapshot;
+use Akaunting\Money\Currency;
+use Akaunting\Money\Money;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use InvalidArgumentException;
@@ -44,14 +46,17 @@ final class CreateOrderFromCart
         $customer = $this->resolveCustomer($customer);
         $subtotal = $cart->getRawSubtotal();
 
+        $cartDiscount = $cart->getConditionsByType('discount')->getTotalDiscount($subtotal);
+        $cartTax = $cart->getConditionsByType('tax')->getTotalCharges($subtotal);
+
         $orderData = [
             'customer_id' => $customer->getKey(),
             'customer_type' => $customer->getMorphClass(),
             'subtotal' => $subtotal,
             'discount_total' => $cart->getItems()->getTotalDiscount()
-                + $cart->getConditionsByType('discount')->getTotalDiscount($subtotal),
+                + $cartDiscount,
             'shipping_total' => $cart->getConditionsByType('shipping')->getTotalCharges($subtotal),
-            'tax_total' => $cart->getConditionsByType('tax')->getTotalCharges($subtotal),
+            'tax_total' => $cartTax,
             'grand_total' => $cart->getRawTotal(),
             'currency' => $cart->getMetadata('currency', config('orders.currency.default', 'MYR')),
             'metadata' => [
@@ -87,7 +92,36 @@ final class CreateOrderFromCart
             ];
         }
 
+        if (array_any($items, fn (array $item): bool => isset($item['metadata']['components']))) {
+            $orderData['subtotal'] = $cart->getRawSubtotalWithoutConditions();
+            $orderData['tax_total'] += array_sum(array_column($items, 'tax_amount'));
+            $this->allocateCartCharges($items, $orderData['currency'], $cartDiscount, $cartTax);
+        }
+
         return $this->createOrder->execute($orderData, $items, $billingAddress, $shippingAddress, $intakeSource, $intakeId);
+    }
+
+    /** @param list<array<string, mixed>> $items */
+    private function allocateCartCharges(array &$items, string $currency, int $discount, int $tax): void
+    {
+        $currency = new Currency($currency);
+        $bases = array_map(fn (array $item): int => max(0, $item['quantity'] * $item['unit_price'] - $item['discount_amount']), $items);
+        foreach (['discount_amount' => $discount, 'tax_amount' => $tax] as $key => $amount) {
+            $eligible = array_filter($bases, fn (int $base, int $index): bool => $base > 0
+                && ($key !== 'tax_amount' || ($items[$index]['metadata']['is_taxable'] ?? true)), ARRAY_FILTER_USE_BOTH);
+            if ($amount <= 0 || $eligible === []) {
+                continue;
+            }
+
+            $shares = new Money($amount, $currency, false)->allocate($eligible);
+            foreach (array_keys($eligible) as $position => $index) {
+                $allocated = (int) $shares[$position]->getAmount();
+                $items[$index][$key] += $allocated;
+                if ($key === 'discount_amount') {
+                    $bases[$index] = max(0, $bases[$index] - $allocated);
+                }
+            }
+        }
     }
 
     private function assertCurrentPackage(Cart $cart, CartLineSnapshot $line): void

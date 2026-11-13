@@ -289,6 +289,13 @@ if ($order->isFullyPaid()) {
 
 `paid_total`, `refunded_total`, and `pending_refunded_total` are cached on the order so balance checks (`getTotalPaid()`, `getTotalRefunded()`, `getRemainingRefundable()`, `getBalanceDue()`, `isFullyPaid()`) never fan out into per-relation sums. The caches are the single source of truth for reads and are kept in sync by `OrderPayment`/`OrderRefund` model events — every write path (transitions, actions, and direct creates) flows through them, so do not assign these columns manually. Item totals still come from `recalculateTotals()`, which uses ex-tax subtotals: `grand_total = subtotal + tax_total + shipping_total - discount_total`.
 
+### Package unit refunds
+
+Pass the received return ID as `metadata['return_authorization_id']` when registering or reserving a package refund. Orders verifies the return with Shipping and records the order item ID and 1-based unit ordinal on every payment allocation. The refund equals the unit's share of the order line's net merchandise amount plus allocated tax. Remainder minor units go to the earliest ordinals. Outbound shipping stays outside the package unit amount and continues through the existing order refund flow.
+
+A unit can have one pending refund request at a time. Replaying the same request key reuses its allocations. If some payment allocations settle and others fail, a new request may refund the remaining amount after the first request has settled or failed. Once the unit amount has been refunded in full, further requests are rejected.
+
+
 > **info**
 > Order payment and refund accounting is single-currency. Every order has one explicit accounting currency (`currency`), and only receipts/refunds whose currency matches it can count toward `paid_total`, `refunded_total`, or `pending_refunded_total`. A receipt or refund in another currency is rejected on creation, update, and status completion; a received receipt cannot be re-denominated. Cross-currency settlement is outside this API unless an explicit conversion model is added later. Currency codes are normalized through `MoneyFormatter::normalizeCurrency()` before comparison.
 >

@@ -7,7 +7,9 @@ namespace AIArmada\Orders\Transitions;
 use AIArmada\Orders\Events\OrderReturned as OrderReturnedEvent;
 use AIArmada\Orders\Models\Order;
 use AIArmada\Orders\States\Returned;
+use AIArmada\Orders\Support\PackageUnit;
 use Carbon\CarbonImmutable;
+use DomainException;
 use Illuminate\Support\Facades\DB;
 use Spatie\ModelStates\Transition;
 
@@ -28,6 +30,10 @@ final class OrderReturned extends Transition
     public function handle(): Order
     {
         return DB::transaction(function (): Order {
+            if ($this->order->items()->get()->contains(fn ($item): bool => PackageUnit::componentsOf($item) !== [])) {
+                throw new DomainException('Use a package return authorization for each returned package unit.');
+            }
+
             $this->order->status->transitionTo(Returned::class);
             $this->order->returned_at = CarbonImmutable::now();
             $this->order->save();

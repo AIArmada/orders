@@ -332,6 +332,13 @@ final class OrderRefund extends Model implements Auditable
         });
 
         static::updating(function (OrderRefund $refund): void {
+            $unit = $refund->getOriginal('metadata')['package_unit'] ?? null;
+            if ($unit !== null && ($refund->isDirty('amount')
+                || ($refund->metadata['package_unit'] ?? null) !== $unit
+                || ($refund->metadata['return_authorization_id'] ?? null) !== ($refund->getOriginal('metadata')['return_authorization_id'] ?? null))) {
+                throw new InvalidArgumentException('The amount and return identity of a package refund are immutable.');
+            }
+
             if ($refund->isDirty('order_id')) {
                 throw new InvalidArgumentException('order_id is immutable after creation.');
             }

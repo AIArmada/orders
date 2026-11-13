@@ -235,6 +235,12 @@ class OrderItem extends Model implements Auditable
             if ($item->isDirty('order_id')) {
                 throw new InvalidArgumentException('order_id is immutable after creation.');
             }
+
+            $originalComponents = $item->getOriginal('metadata')['components'] ?? null;
+            if ($originalComponents !== null && ($item->isDirty(['quantity', 'unit_price', 'discount_amount', 'tax_amount', 'currency'])
+                || ($item->metadata['components'] ?? null) !== $originalComponents)) {
+                throw new InvalidArgumentException('The purchased package composition, quantity, and prices are immutable.');
+            }
         });
     }
 
