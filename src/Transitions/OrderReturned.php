@@ -30,7 +30,7 @@ final class OrderReturned extends Transition
     public function handle(): Order
     {
         return DB::transaction(function (): Order {
-            if ($this->order->items()->get()->contains(fn ($item): bool => PackageUnit::componentsOf($item) !== [])) {
+            if ($this->order->items()->get()->contains(fn ($item): bool => PackageUnit::hasShippableComponents($item))) {
                 throw new DomainException('Use a package return authorization for each returned package unit.');
             }
 

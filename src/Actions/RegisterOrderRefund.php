@@ -427,7 +427,7 @@ final class RegisterOrderRefund
             return;
         }
 
-        $packageTotal = $order->items()->get()->sum(fn ($item): int => PackageUnit::componentsOf($item) === [] ? 0 : $item->calculateTotal());
+        $packageTotal = $order->items()->get()->sum(fn ($item): int => ! PackageUnit::hasShippableComponents($item) ? 0 : $item->calculateTotal());
         if ($packageTotal > 0 && $amount + (int) $reserved->whereNull('metadata->package_unit')->sum('amount')
             > max(0, $order->getTotalPaid() - $packageTotal)) {
             throw new DomainException('A package unit refund requires a received and inspected return authorization.');

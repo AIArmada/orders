@@ -33,6 +33,17 @@ final readonly class PackageUnit
             : [];
     }
 
+    public static function hasShippableComponents(OrderItem $item): bool
+    {
+        foreach (self::componentsOf($item) as $component) {
+            if ($component['requires_shipping']) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public function refundAmount(): int
     {
         $goods = $this->item->calculateTotal() - $this->item->tax_amount;

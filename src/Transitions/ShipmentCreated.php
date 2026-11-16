@@ -39,7 +39,7 @@ final class ShipmentCreated extends Transition
             $this->order->newQuery()->lockForUpdate()->findOrFail($this->order->id);
             $this->order->refresh();
 
-            if ($this->order->items()->get()->contains(fn ($item): bool => PackageUnit::componentsOf($item) !== [])) {
+            if ($this->order->items()->get()->contains(fn ($item): bool => PackageUnit::hasShippableComponents($item))) {
                 if (! class_exists(OrderShipmentUnits::class)) {
                     throw new DomainException('Package fulfillment requires the shipping integration.');
                 }
