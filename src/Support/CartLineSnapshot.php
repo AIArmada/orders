@@ -117,6 +117,8 @@ final readonly class CartLineSnapshot
             'weight' => $this->weightGrams,
             'dimensions' => $this->dimensionsCm,
             'components' => $this->components,
+            'purchase_context' => $this->attributes['purchase_context'] ?? null,
+            'purchase_context_fingerprint' => $this->attributes['purchase_context_fingerprint'] ?? null,
         ]);
     }
 
@@ -138,6 +140,11 @@ final readonly class CartLineSnapshot
     {
         $metadata = $base;
         unset($metadata['components'], $metadata['components_fingerprint']);
+
+        if (array_key_exists('purchase_context', $this->attributes)) {
+            $metadata['purchase_context'] = $this->attributes['purchase_context'];
+            $metadata['purchase_context_fingerprint'] = $this->attributes['purchase_context_fingerprint'] ?? null;
+        }
 
         if (array_key_exists('requires_shipping', $this->attributes)) {
             $metadata['requires_shipping'] = $this->requiresShipping;
