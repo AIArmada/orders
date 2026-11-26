@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace AIArmada\Orders\Actions;
 
-use AIArmada\Addressing\Actions\CreateAddressSnapshotAction;
-use AIArmada\Addressing\Actions\NormalizeAddressDataAction;
-use AIArmada\Addressing\Models\Address;
-use AIArmada\Addressing\Support\ModelResolver;
+use AIArmada\Addressing\Contracts\AddressAttachmentWriter;
+use AIArmada\Addressing\Contracts\AddressNormalizer;
+use AIArmada\Addressing\Contracts\AddressSnapshotWriter;
+use AIArmada\Addressing\Contracts\AddressWriter;
 use AIArmada\CommerceSupport\Support\OwnerContext;
 use AIArmada\Orders\Actions\Concerns\AssertsOrderOwnerBoundary;
 use AIArmada\Orders\Events\OrderCreated;
@@ -356,7 +356,7 @@ final class CreateOrder
      */
     private function normalizeAddressData(array $addressData): array
     {
-        $normalized = app(NormalizeAddressDataAction::class)->normalize($addressData);
+        $normalized = app(AddressNormalizer::class)->normalize($addressData);
 
         /** @var array<string, mixed> $modelAttributes */
         $modelAttributes = $normalized->toModelAttributes();
@@ -448,9 +448,7 @@ final class CreateOrder
             ],
         );
 
-        /** @var class-string<Address> $addressClass */
-        $addressClass = ModelResolver::addressClass();
-        $address = $addressClass::create([
+        $addressId = app(AddressWriter::class)->execute([
             ...array_intersect_key($addressData, array_flip([
                 'country_id',
                 'state_id',
@@ -478,19 +476,25 @@ final class CreateOrder
             ])),
             'country_code' => mb_strtoupper($country),
             'metadata' => $metadata,
-        ]);
+        ], []);
 
-        $order->attachAddress(
-            address: $address,
+        app(AddressAttachmentWriter::class)->attach(
+            addressId: $addressId,
+            addressableType: $order->getMorphClass(),
+            addressableId: (string) $order->getKey(),
             type: $type,
             isPrimary: true,
             label: is_string($addressData['label'] ?? null) ? $addressData['label'] : null,
         );
 
+        $order->unsetRelation('addresses');
+        $order->unsetRelation('addressAttachments');
+
         if (config('orders.address_snapshots.enabled', false)) {
-            app(CreateAddressSnapshotAction::class)->execute(
-                snapshotable: $order,
-                address: $address,
+            app(AddressSnapshotWriter::class)->execute(
+                snapshotableType: $order->getMorphClass(),
+                snapshotableId: $order->getKey(),
+                address: $addressId,
                 reason: 'order_' . $type,
             );
         }
