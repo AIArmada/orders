@@ -6,7 +6,7 @@ namespace AIArmada\Orders\Actions;
 
 use AIArmada\Cart\Cart;
 use AIArmada\Cart\Contracts\BuyablePriceResolver;
-use AIArmada\Cart\Contracts\CartManagerInterface;
+use AIArmada\Cart\Runtime\CartManagerInterface;
 use AIArmada\CommerceSupport\Contracts\Buyable;
 use AIArmada\CommerceSupport\Data\OwnerScopeConfig;
 use AIArmada\CommerceSupport\Support\CompositeComponents;

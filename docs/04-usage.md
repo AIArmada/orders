@@ -31,7 +31,7 @@ $order = app(CreateOrder::class)->execute(
 );
 
 // From cart — the second argument is the customer Eloquent model
-$cart = app(\AIArmada\Cart\Contracts\CartManagerInterface::class)->getCurrentCart();
+$cart = app(\AIArmada\Cart\Runtime\CartManagerInterface::class)->getCurrentCart();
 
 $order = app(CreateOrderFromCart::class)->execute(
     cart: $cart,
