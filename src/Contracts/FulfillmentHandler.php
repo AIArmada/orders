@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace AIArmada\Orders\Contracts;
 
 use AIArmada\Orders\Models\Order;
-use AIArmada\Shipping\Integrations\OrderFulfillmentHandler;
+use AIArmada\Shipping\Features\Shipments\Actions\OrderFulfillmentHandler;
 
 /**
  * Contract for fulfillment/shipping integration.

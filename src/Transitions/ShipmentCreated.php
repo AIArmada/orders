@@ -9,7 +9,7 @@ use AIArmada\Orders\Events\OrderShipped;
 use AIArmada\Orders\Models\Order;
 use AIArmada\Orders\States\Shipped;
 use AIArmada\Orders\Support\PackageUnit;
-use AIArmada\Shipping\Integrations\OrderShipmentUnits;
+use AIArmada\Shipping\Features\Shipments\Api\OrderShipmentFulfillment;
 use Carbon\CarbonImmutable;
 use DomainException;
 use Illuminate\Support\Arr;
@@ -40,12 +40,16 @@ final class ShipmentCreated extends Transition
             $this->order->refresh();
 
             if ($this->order->items()->get()->contains(fn ($item): bool => PackageUnit::hasShippableComponents($item))) {
-                if (! class_exists(OrderShipmentUnits::class)) {
+                if (! interface_exists(OrderShipmentFulfillment::class)) {
                     throw new DomainException('Package fulfillment requires the shipping integration.');
                 }
 
-                if (! app(OrderShipmentUnits::class)->allItemsShipped($this->order, $this->shipmentId)
-                    || $this->order->isShipped()) {
+                if (! app(OrderShipmentFulfillment::class)->allItemsShipped(
+                    (string) $this->order->getKey(),
+                    $this->order->owner_type,
+                    $this->order->owner_id,
+                    $this->shipmentId,
+                ) || $this->order->isShipped()) {
                     return $this->order;
                 }
             }

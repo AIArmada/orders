@@ -389,7 +389,7 @@ interface FulfillmentHandler
 ```
 
 > **info**
-> There is no `getTrackingUrl()`, `cancelShipment()`, or `CarrierOperationResult` on this contract. `AIArmada\Shipping\Integrations\OrderFulfillmentHandler` is the shipped implementation.
+> There is no `getTrackingUrl()`, `cancelShipment()`, or `CarrierOperationResult` on this contract. `AIArmada\Shipping\Features\Shipments\Actions\OrderFulfillmentHandler` is the shipped implementation.
 
 ### InventoryHandler
 

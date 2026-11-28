@@ -10,7 +10,7 @@ use AIArmada\Orders\Events\OrderCancelInitiated;
 use AIArmada\Orders\Models\Order;
 use AIArmada\Orders\States\Canceled;
 use AIArmada\Orders\Support\OrderOutbox;
-use AIArmada\Shipping\Integrations\OrderShipmentUnits;
+use AIArmada\Shipping\Features\Shipments\Api\OrderShipmentFulfillment;
 use Carbon\CarbonImmutable;
 use DomainException;
 use Illuminate\Support\Facades\DB;
@@ -39,7 +39,12 @@ final class OrderCanceled extends Transition
                 ->lockForUpdate()
                 ->findOrFail($this->order->getKey());
             $this->order->refresh();
-            if (class_exists(OrderShipmentUnits::class) && OrderShipmentUnits::hasActivePackageShipment($this->order)) {
+            if (interface_exists(OrderShipmentFulfillment::class)
+                && app(OrderShipmentFulfillment::class)->hasActivePackageShipment(
+                    (string) $this->order->getKey(),
+                    $this->order->owner_type,
+                    $this->order->owner_id,
+                )) {
                 throw new DomainException('Cancel any unshipped package shipments before canceling the order. Shipped units must be returned.');
             }
 
